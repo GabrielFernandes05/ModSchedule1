@@ -41,13 +41,15 @@ A primeira abertura do jogo demora alguns minutos, porque o MelonLoader gera os 
 | Dealers+ | Coletar dinheiro no app de dealers do jogo | pessoal |
 | Recipe List | Receita completa no app de produtos do jogo | pessoal |
 | DeliveryApp++ | Favoritos e pedidos recorrentes no app Delivery do jogo | pessoal |
-| Bank + Laundry | App **Finanças** no celular: banco, lavagem e transações | pessoal |
+| Bank + Laundry | App **Finanças** no celular: banco, lavagem, dealers e transações | pessoal |
+| More Guns | Submetralhadora, pistola de pente estendido, Magnum e escopeta automática no Stan (visual das armas do jogo) | do host |
+| More Clothing | Peças que só NPCs usavam (uniformes etc.) à venda na loja de roupas | do host |
 
 **Configurações:** menu do jogo (principal ou pausa) → **Configurações → aba Mods**. Tudo fica salvo em `UserData/ModSchedule1.cfg`.
 
 **Multiplayer:** as configs marcadas "do host" são enviadas pelo host para todos (via dados do lobby da Steam) e aparecem travadas para os outros jogadores durante a sessão; o cfg de cada um não é alterado. As "pessoais" cada um ajusta a seu gosto.
 
-Próximos (precisam de assets novos): More Guns, More Clothing, Minimap, Robbery.
+Próximos: Minimap, Robbery. Armas/roupas com modelos 3D próprios exigiriam AssetBundles feitos na Unity.
 
 ## Desenvolvimento
 

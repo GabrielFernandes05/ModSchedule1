@@ -1,5 +1,5 @@
 {
-  "version": "0.8.2",
+  "version": "0.9.0",
   "features": [
     {
       "id": "BetterStacks",
@@ -102,6 +102,18 @@
       "name": "Ações rápidas",
       "default": true,
       "description": "Pula animações de terra, plantio, aditivos, rega, colheita e cogumelos."
+    },
+    {
+      "id": "MoreGuns",
+      "name": "More Guns",
+      "default": true,
+      "description": "Submetralhadora, pistola de pente estendido, Magnum e escopeta automática no Stan."
+    },
+    {
+      "id": "MoreClothing",
+      "name": "More Clothing",
+      "default": true,
+      "description": "Roupas e acessórios que só os NPCs usavam, à venda na loja de roupas."
     }
   ]
 }
