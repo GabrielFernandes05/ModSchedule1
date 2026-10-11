@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.Linq;
 using HarmonyLib;
 using Il2CppInterop.Runtime.InteropTypes.Arrays;
 using Il2CppScheduleOne;
@@ -17,17 +16,20 @@ using Object = UnityEngine.Object;
 namespace ModSchedule1.PhoneUI;
 
 /// <summary>
-/// Aba "Mods" dentro de Configurações (menu principal e pausa). Linhas são clones das linhas nativas de
-/// liga/desliga e slider (mesma fonte e estilo), religadas às nossas Prefs. A SettingsScreen monta as abas a partir
-/// de Categories no primeiro OnEnable, então basta acrescentar a nossa no Awake (a tela é desativada no Awake).
+/// Aba "Mods" dentro de Configurações + botão "Mods" no menu principal e no de pausa (abre direto na aba).
+/// Linhas são clones das linhas nativas de liga/desliga e slider (mesma fonte e estilo), religadas às nossas Prefs.
+/// Cada mod é uma linha liga/desliga; clicar no nome abre/fecha as opções dele.
+/// A SettingsScreen monta as abas a partir de Categories no primeiro OnEnable, então basta acrescentar a nossa no Awake.
 /// </summary>
 internal static class ModsSettingsTab
 {
     private static readonly Log Log = new("Menu");
-    private const string TabName = "MS1_ModsTab";
-    private static readonly List<Action> Refreshers = new();
-    private static int _tabIndex = -1;
-    private static bool _dumped, _dumpedBar;
+    private const string TabName = "MS1_ModsTab", MenuButtonName = "MS1_ModsButton";
+    private static readonly List<(GameObject Owner, Action Run)> Refreshers = new();
+    private static readonly List<SettingsScreen> Screens = new();
+    private static SettingsScreen? _pending;   // botão "Mods" do menu: abrir esta tela na aba Mods
+    private static float _pendingAt;
+    private static bool _selfOpened, _dumped, _dumpedBar, _dumpedMenu;
 
     [HarmonyPatch(typeof(SettingsScreen), nameof(SettingsScreen.Awake))]
     internal static class AwakePatch
@@ -36,31 +38,64 @@ internal static class ModsSettingsTab
         {
             try { Build(__instance); }
             catch (Exception e) { Log.Error($"aba Mods não criada: {e}"); }
-        }
-    }
-
-    [HarmonyPatch(typeof(SettingsScreen), nameof(SettingsScreen.ShowCategory))]
-    internal static class ShowPatch
-    {
-        private static void Postfix(int index)
-        {
-            if (index == _tabIndex) Refresh();
+            try { AddMenuButtons(__instance); }
+            catch (Exception e) { Log.Error($"botão Mods do menu não criado: {e}"); }
         }
     }
 
     public static void Refresh()
     {
-        foreach (var r in Refreshers)
+        Refreshers.RemoveAll(r => r.Owner == null);
+        foreach (var (_, run) in Refreshers)
         {
-            try { r(); } catch (Exception e) { Log.Error($"refresh: {e.Message}"); }
+            try { run(); } catch (Exception e) { Log.Error($"refresh: {e.Message}"); }
         }
+    }
+
+    /// <summary>Chamado todo frame: conclui o "abrir na aba Mods" depois que a tela de Configurações abriu.</summary>
+    public static void Tick()
+    {
+        if (_pending == null) return;
+        try { TickPending(); }
+        catch (Exception e) { _pending = null; Log.Error($"abrir aba Mods: {e.Message}"); }
+    }
+
+    private static void TickPending()
+    {
+        if (_pending == null) return;
+        float waited = Time.unscaledTime - _pendingAt;
+        // qualquer tela de Configurações que abriu (o botão clonado pode abrir outra instância que não a _pending)
+        Screens.RemoveAll(s => s == null);
+        foreach (var screen in Screens)
+        {
+            if (!screen.gameObject.activeInHierarchy || !screen._initialized) continue;
+            var tab = ModsToggle(screen);
+            if (tab != null) tab.isOn = true;
+            _pending = null;
+            return;
+        }
+        if (waited > 0.3f && !_selfOpened)
+        {
+            // o clone do botão Settings deveria ter aberto a tela; se não abriu, abrimos nós
+            _selfOpened = true;
+            Log.Debug("tela de Configurações não abriu pelo botão clonado; abrindo direto");
+            _pending.Open();
+        }
+        else if (waited > 3f) _pending = null;
+    }
+
+    private static Toggle? ModsToggle(SettingsScreen screen)
+    {
+        var cats = screen.Categories;
+        for (int i = 0; i < cats.Length; i++)
+            if (cats[i].Toggle != null && cats[i].Toggle.name == TabName) return cats[i].Toggle;
+        return null;
     }
 
     private static void Build(SettingsScreen screen)
     {
+        if (ModsToggle(screen) != null) return;
         var cats = screen.Categories;
-        for (int i = 0; i < cats.Length; i++)
-            if (cats[i].Toggle != null && cats[i].Toggle.name == TabName) return;
 
         if (!_dumped && Core.DebugLogging)
             for (int i = 0; i < cats.Length; i++)
@@ -74,7 +109,6 @@ internal static class ModsSettingsTab
         var font = toggleTemplate.GetComponentInChildren<TextMeshProUGUI>(true);
 
         // aba: clone da última aba. A barra pode ter um wrapper por aba: clonamos a "raiz" da aba (filho direto da barra).
-        var last = cats[cats.Length - 1];
         var roots = new List<RectTransform>();
         for (int i = 0; i < cats.Length; i++) roots.Add(TabRoot(cats[i].Toggle.transform).GetComponent<RectTransform>());
         var bar = roots[roots.Count - 1].parent;
@@ -84,6 +118,8 @@ internal static class ModsSettingsTab
         var tab = tabGo.GetComponentInChildren<Toggle>(true);
         tab.gameObject.name = TabName;
         tab.onValueChanged = new Toggle.ToggleEvent();
+        // ShowCategory é inlinado no IL2CPP (patch nele não roda): atualizamos pelo próprio toggle da aba
+        tab.onValueChanged.AddListener((UnityAction<bool>)new Action<bool>(on => { if (on) Refresh(); }));
         tab.isOn = false;
         foreach (var label in tabGo.GetComponentsInChildren<TextMeshProUGUI>(true)) label.text = "Mods";
         var tabSelectable = tab.GetComponent<UISelectable>();
@@ -91,7 +127,7 @@ internal static class ModsSettingsTab
         if (bar.GetComponent<LayoutGroup>() == null) FitTabs(roots, tabGo.GetComponent<RectTransform>());
 
         // painel: clone do painel que já tem rolagem (muitas linhas); senão, rolagem nossa
-        GameObject sourcePanel = last.Panel;
+        GameObject sourcePanel = cats[cats.Length - 1].Panel;
         for (int i = 0; i < cats.Length; i++)
             if (cats[i].Panel.GetComponentInChildren<ScrollRect>(true) != null) { sourcePanel = cats[i].Panel; break; }
         var panel = Object.Instantiate(sourcePanel, sourcePanel.transform.parent, false);
@@ -103,54 +139,121 @@ internal static class ModsSettingsTab
         var uiPanel = panel.GetComponentInChildren<UIPanel>(true);
         if (uiPanel != null) uiPanel.ClearAllSelectables();
 
-        Refreshers.Clear();
-        Header(content, font, $"ModSchedule1 v{Core.Version}", 1.25f);
-        Info(content, font, () => ConfigSync.Active
-            ? "Multiplayer: as configs de jogo seguem as do host (marcadas como 'do host')."
-            : "Configs de jogo (pilhas, estações, funcionários...) valem para todos quando você hospeda.");
-        AddToggle(content, toggleRow, uiPanel, "Logs detalhados (debug)", () => Core.DebugLogging, Core.SetDebugLogging, () => true);
+        // A lista nativa não controla o tamanho dos filhos (linhas têm tamanho fixo): textos novos precisam de largura.
+        float width = content.parent != null ? content.parent.GetComponent<RectTransform>().rect.width - 40 : 0;
+        if (width < 300) width = 600;
+        var b = new Builder(content, toggleRow, sliderRow, uiPanel, font, width);
+
+        b.Title($"ModSchedule1 v{Core.Version}");
+        b.Info(() => ConfigSync.Active
+            ? "Multiplayer: configs de jogo seguem as do host (marcadas \"do host\"). Clique no nome de um mod para ver as opções."
+            : "Clique no nome de um mod para ver as opções. Configs de jogo valem para todos quando você hospeda.");
+        b.Toggle(() => "Logs detalhados (debug)", () => Core.DebugLogging, Core.SetDebugLogging, () => true);
 
         foreach (var feature in Core.Features)
         {
             var f = feature;
-            Header(content, font, f.Name + (f.Shared ? "" : "   (pessoal)"), 1.1f);
-            if (f.Faulted) Info(content, font, () => "Desativada por erro nesta sessão (veja o log).");
+            var section = new List<GameObject>();
+            bool open = false;
+            Func<string> suffix = () => f.Enabled.Overridden ? "  (do host)" : "";
+            var head = b.Toggle(() => $"{f.Name}{(f.Faulted ? "  <color=#ff7070>(erro)</color>" : "")}{suffix()}  <alpha=#80>{(open ? "[-]" : "[+]")}",
+                () => f.Enabled.Value, v => { f.Enabled.Value = v; MelonPreferences.Save(); }, () => !f.Enabled.Overridden);
+
+            section.Add(b.Info(() => f.Description + (f.Faulted ? " Desativado por erro nesta sessão (veja o log)." : "")
+                + (f.Shared ? " Config do host no multiplayer." : " Config pessoal (cada jogador escolhe)."), indent: true));
             foreach (var pref in f.Prefs)
             {
                 var p = pref;
-                string label = p.Entry.Identifier == "Enabled" ? "Ativo" : p.Entry.DisplayName;
+                if (p == f.Enabled) continue;
+                Func<string> label = () => "    " + p.Entry.DisplayName + (p.Overridden ? "  (do host)" : "");
                 Func<bool> editable = () => !p.Overridden;
-                Func<string> suffix = () => p.Overridden ? "  (do host)" : "";
-                switch (p)
+                GameObject? row = p switch
                 {
-                    case Pref<bool> b:
-                        AddToggle(content, toggleRow, uiPanel, label, () => b.Value, v => { b.Value = v; MelonPreferences.Save(); }, editable, suffix);
-                        break;
-                    case Pref<int> n when sliderRow != null:
-                        AddSlider(content, sliderRow, uiPanel, label, p.Min, p.Max, true, () => n.Value,
-                            v => { n.Value = Mathf.RoundToInt(v); MelonPreferences.Save(); }, editable, suffix);
-                        break;
-                    case Pref<float> fl when sliderRow != null:
-                        AddSlider(content, sliderRow, uiPanel, label, p.Min, p.Max, false, () => fl.Value,
-                            v => { fl.Value = (float)Math.Round(v, 2); MelonPreferences.Save(); }, editable, suffix);
-                        break;
-                    default:
-                        Info(content, font, () => $"{label}: {Format(p.BoxedValue)}   (edite em UserData/ModSchedule1.cfg)");
-                        break;
-                }
+                    Pref<bool> bp => b.Toggle(label, () => bp.Value, v => { bp.Value = v; MelonPreferences.Save(); }, editable),
+                    Pref<int> n when sliderRow != null => b.Slider(label, p.Min, p.Max, true, () => n.Value,
+                        v => { n.Value = Mathf.RoundToInt(v); MelonPreferences.Save(); }, editable),
+                    Pref<float> fl when sliderRow != null => b.Slider(label, p.Min, p.Max, false, () => fl.Value,
+                        v => { fl.Value = (float)Math.Round(v, 2); MelonPreferences.Save(); }, editable),
+                    _ => b.Info(() => $"{p.Entry.DisplayName}: {Format(p.BoxedValue)}   (edite em UserData/ModSchedule1.cfg)", indent: true),
+                };
+                if (row != null) section.Add(row);
             }
             foreach (var (actionLabel, run) in f.Actions)
-                AddAction(content, toggleRow, uiPanel, actionLabel, run, () => f.Active);
+            {
+                var row = b.Action("    " + actionLabel, run, () => f.Active);
+                if (row != null) section.Add(row);
+            }
+
+            foreach (var go in section) go.SetActive(false);
+            // ponytail: abrir/fechar só pelo mouse (clique no nome); no controle as opções ficam na config
+            if (head != null) b.Clickable(head, () =>
+            {
+                open = !open;
+                foreach (var go in section) go.SetActive(open);
+                Refresh();
+            });
         }
 
         var arr = new Il2CppReferenceArray<SettingsScreen.SettingsCategory>(cats.Length + 1);
         for (int i = 0; i < cats.Length; i++) arr[i] = cats[i];
         arr[cats.Length] = new SettingsScreen.SettingsCategory { Toggle = tab, Panel = panel };
         screen.Categories = arr;
-        _tabIndex = cats.Length;
         panel.SetActive(false);
-        Log.Info($"aba Mods criada ({Refreshers.Count} itens)");
+        Screens.RemoveAll(s => s == null);
+        Screens.Add(screen);
+        Refresh();   // grava os textos antes do Awake das linhas (UIOption.Awake copia optionName para o rótulo)
+        Log.Info($"aba Mods criada ({b.Rows} linhas)");
     }
+
+    /// <summary>
+    /// Botão "Mods" logo abaixo de "Settings" nos menus (principal e pausa): clone do próprio botão Settings, que
+    /// continua abrindo as Configurações; o Tick troca para a aba Mods quando a tela abre.
+    /// </summary>
+    private static void AddMenuButtons(SettingsScreen screen)
+    {
+        int added = 0;
+        foreach (var sel in screen.transform.root.GetComponentsInChildren<Selectable>(true))
+        {
+            if (sel.transform.IsChildOf(screen.transform)) continue;
+            var label = sel.GetComponentInChildren<TextMeshProUGUI>(true);
+            if (label == null || !IsSettings(label.text)) continue;
+            var parent = sel.transform.parent;
+            if (parent == null || parent.Find(MenuButtonName) != null) continue;
+            NativeUi.DumpOnce(ref _dumpedMenu, parent, "menu com o botão Settings", 2);
+
+            var go = Object.Instantiate(sel.gameObject, parent, false);
+            go.name = MenuButtonName;
+            foreach (var t in go.GetComponentsInChildren<TextMeshProUGUI>(true))
+                if (IsSettings(t.text)) t.text = "Mods";
+            Action open = () => { _pending = screen; _pendingAt = Time.unscaledTime; _selfOpened = false; };
+            go.GetComponent<Button>()?.onClick.AddListener((UnityAction)open);
+            go.GetComponent<UITrigger>()?.OnTrigger.AddListener((UnityAction)open);
+            var selectable = go.GetComponent<UISelectable>();
+            var menuPanel = sel.GetComponentInParent<UIPanel>(true);
+            if (selectable != null && menuPanel != null) menuPanel.AddSelectable(selectable);
+
+            var rt = go.GetComponent<RectTransform>();
+            var srt = sel.GetComponent<RectTransform>();
+            if (parent.GetComponent<LayoutGroup>() != null) go.transform.SetSiblingIndex(sel.transform.GetSiblingIndex() + 1);
+            else
+            {
+                // sem layout automático: abre espaço logo abaixo do Settings, empurrando os de baixo
+                float step = srt.rect.height + 8f;
+                for (int i = 0; i < parent.childCount; i++)
+                {
+                    var c = parent.GetChild(i).GetComponent<RectTransform>();
+                    if (c != null && c != rt && c.anchoredPosition.y < srt.anchoredPosition.y - 1f)
+                        c.anchoredPosition -= new Vector2(0, step);
+                }
+                rt.anchoredPosition = srt.anchoredPosition - new Vector2(0, step);
+            }
+            added++;
+            Log.Debug($"botão Mods criado em {parent.name}");
+        }
+        if (added == 0) Log.Debug($"nenhum botão Settings fora da tela de Configurações em {screen.transform.root.name}");
+    }
+
+    private static bool IsSettings(string? text) => string.Equals(text?.Trim(), "Settings", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Sobe por wrappers de filho único até o elemento que é filho direto da barra de abas.</summary>
     private static Transform TabRoot(Transform toggle)
@@ -199,129 +302,6 @@ internal static class ModsSettingsTab
         for (int i = parent.childCount - 1; i >= 0; i--) Object.DestroyImmediate(parent.GetChild(i).gameObject);
     }
 
-    private static GameObject CloneRow(Transform template, Transform content, string name)
-    {
-        var row = Object.Instantiate(template.gameObject, content, false);
-        row.name = name;
-        row.SetActive(true);
-        var le = row.GetComponent<LayoutElement>() ?? row.AddComponent<LayoutElement>();
-        float h = template.GetComponent<RectTransform>().rect.height;
-        if (h > 1) le.minHeight = le.preferredHeight = h;
-        return row;
-    }
-
-    private static void Editable(GameObject row, bool on)
-    {
-        var cg = row.GetComponent<CanvasGroup>() ?? row.AddComponent<CanvasGroup>();
-        cg.alpha = on ? 1f : 0.45f;
-        cg.interactable = cg.blocksRaycasts = on;
-    }
-
-    private static void AddToggle(Transform content, Transform template, UIPanel? uiPanel, string label,
-        Func<bool> get, Action<bool> set, Func<bool> editable, Func<string>? suffix = null)
-    {
-        var row = CloneRow(template, content, "MS1_Toggle");
-        foreach (var st in row.GetComponentsInChildren<SettingsToggle>(true)) Object.DestroyImmediate(st);   // tira o vínculo com a config do jogo
-        var ui = row.GetComponentInChildren<UIToggle>(true);
-        if (ui == null) { Object.Destroy(row); return; }
-        ui.OnChanged = new UnityEvent<bool>();
-        ui.OnChanged.AddListener((UnityAction<bool>)new Action<bool>(v => { set(v); Refresh(); }));
-        if (uiPanel != null && ui.selectable != null) uiPanel.AddSelectable(ui.selectable);
-        Refreshers.Add(() =>
-        {
-            string text = label + (suffix?.Invoke() ?? "");
-            ui.optionName = text;   // UIOption.Awake reescreve nameText com optionName
-            if (ui.nameText != null) ui.nameText.text = text;
-            ui.SetStateWithoutNotify(get());
-            Editable(row, editable());
-        });
-    }
-
-    /// <summary>Ação ("Limpar agora"): linha de liga/desliga que executa e volta ao estado normal.</summary>
-    private static void AddAction(Transform content, Transform template, UIPanel? uiPanel, string label, Action run, Func<bool> enabled)
-    {
-        UIToggle? ui = null;
-        AddToggle(content, template, uiPanel, label, () => false, _ =>
-        {
-            try { run(); } catch (Exception e) { Log.Error($"{label}: {e.Message}"); }
-        }, enabled);
-        var row = content.GetChild(content.childCount - 1).gameObject;
-        ui = row.GetComponentInChildren<UIToggle>(true);
-        Refreshers.Add(() => { if (ui != null && ui.buttonText != null) ui.buttonText.text = "Executar"; });
-    }
-
-    private static void AddSlider(Transform content, Transform template, UIPanel? uiPanel, string label, float min, float max,
-        bool whole, Func<float> get, Action<float> set, Func<bool> editable, Func<string> suffix)
-    {
-        var row = CloneRow(template, content, "MS1_Slider");
-        foreach (var ss in row.GetComponentsInChildren<SettingsSlider>(true)) Object.DestroyImmediate(ss);
-        var slider = row.GetComponentInChildren<Slider>(true);
-        if (slider == null) { Object.Destroy(row); return; }
-        var ui = row.GetComponentInChildren<UISlider>(true);
-        if (ui != null) ui.OnChanged = new UnityEvent<float>();
-
-        // rótulo = primeiro texto fora do slider; valor = texto do UISlider ou o "Value" no handle (padrão do jogo)
-        TextMeshProUGUI? name = null, value = ui != null ? ui.valueText : null;
-        foreach (var t in row.GetComponentsInChildren<TextMeshProUGUI>(true))
-        {
-            bool inSlider = t.transform.IsChildOf(slider.transform);
-            if (!inSlider && name == null && (ui == null || t != ui.valueText)) name = t;
-            else if (inSlider && value == null) value = t;
-        }
-
-        slider.onValueChanged = new Slider.SliderEvent();
-        slider.minValue = min;
-        slider.maxValue = max;
-        slider.wholeNumbers = whole;
-        slider.onValueChanged.AddListener((UnityAction<float>)new Action<float>(v =>
-        {
-            set(v);
-            if (value != null) value.text = Format(get());
-        }));
-        if (uiPanel != null && ui != null && ui.selectable != null) uiPanel.AddSelectable(ui.selectable);
-        Refreshers.Add(() =>
-        {
-            string text = label + suffix();
-            if (ui != null) ui.optionName = text;
-            if (name != null) name.text = text;
-            slider.SetValueWithoutNotify(Mathf.Clamp(get(), min, max));
-            if (value != null) { value.text = Format(get()); value.gameObject.SetActive(true); }
-            Editable(row, editable());
-        });
-    }
-
-    private static void Header(Transform content, TextMeshProUGUI? style, string text, float scale)
-    {
-        var t = NewText(content, style, scale, 46);
-        t.fontStyle = FontStyles.Bold;
-        t.text = text;
-    }
-
-    private static void Info(Transform content, TextMeshProUGUI? style, Func<string> text)
-    {
-        var t = NewText(content, style, 0.8f, 30);
-        t.color = new Color(t.color.r, t.color.g, t.color.b, 0.7f);
-        Refreshers.Add(() => t.text = text());
-    }
-
-    private static TextMeshProUGUI NewText(Transform content, TextMeshProUGUI? style, float scale, float height)
-    {
-        var go = Ui.Child("MS1_Text", content);
-        var t = go.AddComponent<TextMeshProUGUI>();
-        if (style != null)
-        {
-            t.font = style.font;
-            t.fontSharedMaterial = style.fontSharedMaterial;
-            t.color = style.color;
-            t.fontSize = style.fontSize * scale;
-        }
-        t.alignment = TextAlignmentOptions.MidlineLeft;
-        t.enableWordWrapping = true;
-        var le = go.AddComponent<LayoutElement>();
-        le.minHeight = le.preferredHeight = height;
-        return t;
-    }
-
     private static string Format(object? v) => v switch
     {
         float f => f.ToString("0.##", CultureInfo.InvariantCulture),
@@ -330,4 +310,183 @@ internal static class ModsSettingsTab
         null => "-",
         _ => Convert.ToString(v, CultureInfo.InvariantCulture) ?? "-",
     };
+
+    /// <summary>Monta as linhas do painel. Cada linha registra um refresher (rótulo, valor, editável).</summary>
+    private sealed class Builder
+    {
+        private readonly Transform _content, _toggleRow;
+        private readonly Transform? _sliderRow;
+        private readonly UIPanel? _uiPanel;
+        private readonly TextMeshProUGUI? _font;
+        private readonly float _width;
+        public int Rows;
+
+        public Builder(Transform content, Transform toggleRow, Transform? sliderRow, UIPanel? uiPanel, TextMeshProUGUI? font, float width)
+        {
+            _content = content; _toggleRow = toggleRow; _sliderRow = sliderRow; _uiPanel = uiPanel; _font = font; _width = width;
+        }
+
+        private void Add(GameObject owner, Action run) { Refreshers.Add((owner, run)); Rows++; }
+
+        private GameObject CloneRow(Transform template, string name)
+        {
+            var row = Object.Instantiate(template.gameObject, _content, false);
+            row.name = name;
+            row.SetActive(true);
+            var le = row.GetComponent<LayoutElement>() ?? row.AddComponent<LayoutElement>();
+            float h = template.GetComponent<RectTransform>().rect.height;
+            if (h > 1) le.minHeight = le.preferredHeight = h;
+            return row;
+        }
+
+        private static void Editable(GameObject row, bool on)
+        {
+            var cg = row.GetComponent<CanvasGroup>() ?? row.AddComponent<CanvasGroup>();
+            cg.alpha = on ? 1f : 0.45f;
+            cg.interactable = cg.blocksRaycasts = on;
+        }
+
+        /// <summary>Rótulo nativo em uma linha só, encolhendo a fonte se o texto for longo.</summary>
+        private static void FitLabel(TextMeshProUGUI? t)
+        {
+            if (t == null) return;
+            t.richText = true;
+            t.enableWordWrapping = false;
+            t.fontSizeMax = t.fontSize;
+            t.fontSizeMin = Mathf.Min(12f, t.fontSize);
+            t.enableAutoSizing = true;
+        }
+
+        public GameObject? Toggle(Func<string> label, Func<bool> get, Action<bool> set, Func<bool> editable)
+        {
+            var row = CloneRow(_toggleRow, "MS1_Toggle");
+            foreach (var st in row.GetComponentsInChildren<SettingsToggle>(true)) Object.DestroyImmediate(st);   // tira o vínculo com a config do jogo
+            var ui = row.GetComponentInChildren<UIToggle>(true);
+            if (ui == null) { Object.Destroy(row); return null; }
+            ui.OnChanged = new UnityEvent<bool>();
+            ui.OnChanged.AddListener((UnityAction<bool>)new Action<bool>(v => { set(v); Refresh(); }));
+            if (_uiPanel != null && ui.selectable != null) _uiPanel.AddSelectable(ui.selectable);
+            FitLabel(ui.nameText);
+            Add(row, () =>
+            {
+                string text = label();
+                ui.optionName = text;   // UIOption.Awake reescreve nameText com optionName
+                if (ui.nameText != null) ui.nameText.text = text;
+                ui.SetStateWithoutNotify(get());
+                Editable(row, editable());
+            });
+            return row;
+        }
+
+        /// <summary>Clicar no rótulo da linha executa <paramref name="onClick"/> (o resto da linha continua liga/desliga).</summary>
+        public void Clickable(GameObject row, Action onClick)
+        {
+            var name = row.GetComponentInChildren<UIToggle>(true)?.nameText;
+            if (name == null) return;
+            name.raycastTarget = true;
+            var button = name.GetComponent<Button>() ?? name.gameObject.AddComponent<Button>();
+            button.transition = Selectable.Transition.None;
+            button.navigation = new Navigation { mode = Navigation.Mode.None };
+            button.onClick.AddListener((UnityAction)onClick);
+        }
+
+        /// <summary>Ação ("Limpar agora"): linha de liga/desliga que executa e volta ao estado normal.</summary>
+        public GameObject? Action(string label, Action run, Func<bool> enabled)
+        {
+            var row = Toggle(() => label, () => false, _ =>
+            {
+                try { run(); } catch (Exception e) { Log.Error($"{label.Trim()}: {e.Message}"); }
+            }, enabled);
+            var ui = row != null ? row.GetComponentInChildren<UIToggle>(true) : null;
+            if (row != null) Add(row, () => { if (ui != null && ui.buttonText != null) ui.buttonText.text = "Executar"; });
+            return row;
+        }
+
+        public GameObject? Slider(Func<string> label, float min, float max, bool whole, Func<float> get, Action<float> set, Func<bool> editable)
+        {
+            if (_sliderRow == null) return null;
+            var row = CloneRow(_sliderRow, "MS1_Slider");
+            foreach (var ss in row.GetComponentsInChildren<SettingsSlider>(true)) Object.DestroyImmediate(ss);
+            var slider = row.GetComponentInChildren<Slider>(true);
+            if (slider == null) { Object.Destroy(row); return null; }
+            var ui = row.GetComponentInChildren<UISlider>(true);
+            if (ui != null) ui.OnChanged = new UnityEvent<float>();
+
+            // rótulo = primeiro texto fora do slider; valor = texto do UISlider ou o "Value" no handle (padrão do jogo)
+            TextMeshProUGUI? name = null, value = ui != null ? ui.valueText : null;
+            foreach (var t in row.GetComponentsInChildren<TextMeshProUGUI>(true))
+            {
+                bool inSlider = t.transform.IsChildOf(slider.transform);
+                if (!inSlider && name == null && (ui == null || t != ui.valueText)) name = t;
+                else if (inSlider && value == null) value = t;
+            }
+            FitLabel(name);
+
+            slider.onValueChanged = new UnityEngine.UI.Slider.SliderEvent();
+            slider.minValue = min;
+            slider.maxValue = max;
+            slider.wholeNumbers = whole;
+            slider.onValueChanged.AddListener((UnityAction<float>)new Action<float>(v =>
+            {
+                set(v);
+                if (value != null) value.text = Format(get());
+            }));
+            if (_uiPanel != null && ui != null && ui.selectable != null) _uiPanel.AddSelectable(ui.selectable);
+            Add(row, () =>
+            {
+                string text = label();
+                if (ui != null) ui.optionName = text;
+                if (name != null) name.text = text;
+                slider.SetValueWithoutNotify(Mathf.Clamp(get(), min, max));
+                if (value != null) { value.text = Format(get()); value.gameObject.SetActive(true); }
+                Editable(row, editable());
+            });
+            return row;
+        }
+
+        public void Title(string text)
+        {
+            var t = NewText(1.15f);
+            t.fontStyle = FontStyles.Bold;
+            t.text = text;
+            Fit(t);
+        }
+
+        public GameObject Info(Func<string> text, bool indent = false)
+        {
+            var t = NewText(0.8f);
+            t.color = new Color(t.color.r, t.color.g, t.color.b, 0.7f);
+            if (indent) t.margin = new Vector4(28, 0, 0, 0);
+            Add(t.gameObject, () => { t.text = text(); Fit(t); });
+            return t.gameObject;
+        }
+
+        private TextMeshProUGUI NewText(float scale)
+        {
+            var go = Ui.Child("MS1_Text", _content);
+            var t = go.AddComponent<TextMeshProUGUI>();
+            if (_font != null)
+            {
+                t.font = _font.font;
+                t.fontSharedMaterial = _font.fontSharedMaterial;
+                t.color = _font.color;
+                t.fontSize = _font.fontSize * scale;
+            }
+            t.alignment = TextAlignmentOptions.MidlineLeft;
+            t.enableWordWrapping = true;
+            t.raycastTarget = false;
+            t.margin = new Vector4(10, 0, 0, 0);
+            go.AddComponent<LayoutElement>();
+            return t;
+        }
+
+        /// <summary>Altura pelo texto (quebra em várias linhas): a lista nativa usa o tamanho do próprio filho.</summary>
+        private void Fit(TextMeshProUGUI t)
+        {
+            float h = Mathf.Max(30f, t.GetPreferredValues(t.text, _width - t.margin.x, 0).y + 10f);
+            t.GetComponent<RectTransform>().sizeDelta = new Vector2(_width, h);
+            var le = t.GetComponent<LayoutElement>();
+            le.minHeight = le.preferredHeight = h;
+        }
+    }
 }

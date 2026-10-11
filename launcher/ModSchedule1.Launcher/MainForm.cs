@@ -16,6 +16,7 @@ namespace ModSchedule1.Launcher
         // cabeçalho
         Label _subtitle;
         Pill _status;
+        Button _update;
         // card Jogo
         Label _gamePath, _gameVersion;
         // card Mods
@@ -29,6 +30,7 @@ namespace ModSchedule1.Launcher
         LinkLabel _crashLink;
 
         readonly Timer _monitor = new Timer { Interval = 1500 };
+        readonly Timer _updateCheck = new Timer { Interval = 5 * 60 * 1000 };
         bool _busy, _ready, _wasRunning, _launching;
         DateTime _launchedAt;
         long _logPos;
@@ -61,7 +63,8 @@ namespace ModSchedule1.Launcher
 
             _engine.Log = (msg, kind) => AppendLog(msg, kind);
             _monitor.Tick += (_, __) => MonitorGame();
-            Shown += async (_, __) => { _monitor.Start(); await Sync(false); };
+            _updateCheck.Tick += async (_, __) => await CheckForUpdate();
+            Shown += async (_, __) => { _monitor.Start(); _updateCheck.Start(); await Sync(false); };
         }
 
         protected override void OnHandleCreated(EventArgs e)
@@ -79,8 +82,14 @@ namespace ModSchedule1.Launcher
                 if (s != null) icon.Image = new Icon(s, 256, 256).ToBitmap();
             Controls.Add(icon);
             Controls.Add(new Label { Text = "ModSchedule1", Font = Theme.Semibold(20f), ForeColor = Theme.Text, Location = new Point(86, 14), AutoSize = true });
-            _subtitle = new Label { Font = Theme.Font(9f), ForeColor = Theme.Muted, Location = new Point(89, 52), Size = new Size(620, 20) };
+            _subtitle = new Label { Font = Theme.Font(9f), ForeColor = Theme.Muted, Location = new Point(89, 52), Size = new Size(470, 20) };
             Controls.Add(_subtitle);
+            _update = Theme.Btn("Atualizar", Theme.Accent, Theme.AccentHover, Theme.Semibold(9.5f));
+            _update.SetBounds(526, 28, 180, 34);
+            _update.FlatAppearance.BorderColor = Theme.AccentHover;
+            _update.Visible = false;
+            _update.Click += async (_, __) => await UpdateNow();
+            Controls.Add(_update);
             _status = new Pill { Location = new Point(716, 28), Size = new Size(240, 34) };
             Controls.Add(_status);
             UpdateSubtitle();
@@ -319,7 +328,8 @@ namespace ModSchedule1.Launcher
                 RefreshMods();
                 _ready = true;
                 _engine.Write("Tudo pronto.", Engine.LogKind.Ok);
-                SetState("Pronto para jogar", Theme.Green, "Os mods ficam ativos assim que o jogo abrir. Ajustes: app Mods no celular do jogo.", true);
+                _update.Visible = false;
+                SetState("Pronto para jogar", Theme.Green, "Os mods ficam ativos assim que o jogo abrir. Ajustes: botão Mods no menu do jogo.", true);
             }
             catch (Exception e)
             {
@@ -401,6 +411,35 @@ namespace ModSchedule1.Launcher
             await Task.CompletedTask;
         }
 
+        /// <summary>
+        /// Consulta o GitHub em segundo plano a cada 5 min (ao abrir, o Sync já atualiza). Achando versão nova, mostra o botão Atualizar;
+        /// nada é baixado até o clique. Falha de rede aqui é silenciosa: a checagem seguinte tenta de novo.
+        /// </summary>
+        async Task CheckForUpdate()
+        {
+            if (_busy || string.IsNullOrEmpty(_engine.State.Sha)) return;
+            string[] found;
+            try { found = await Task.Run(() => _engine.CheckUpdate()); }
+            catch { return; }
+            if (found == null || _busy) return;
+            bool newVersion = !string.IsNullOrEmpty(found[1]) && found[1] != _manifest.Version;
+            var label = newVersion ? $"Atualizar para v{found[1]}" : "Atualizar (correções)";
+            if (_update.Visible && _update.Text == label) return;
+            _update.Text = label;
+            _update.Visible = true;
+            _engine.Write($"Atualização disponível: {(newVersion ? "v" + found[1] : "correções")} (commit {found[0].Substring(0, 7)}). Clique em '{label}'.", Engine.LogKind.Ok);
+        }
+
+        async Task UpdateNow()
+        {
+            if (Engine.GameRunning())
+            {
+                MessageBox.Show("Feche o jogo para atualizar: com ele aberto os arquivos do mod ficam travados.", "ModSchedule1");
+                return;
+            }
+            await Sync(false);
+        }
+
         // ---------- monitor do jogo ----------
 
         void MonitorGame()
@@ -479,6 +518,7 @@ namespace ModSchedule1.Launcher
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
             _monitor.Stop();
+            _updateCheck.Stop();
             base.OnFormClosing(e);
         }
     }

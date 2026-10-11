@@ -13,7 +13,8 @@ Megamod para **Schedule I**: um único `ModSchedule1.dll` que substitui a pilha 
    - baixa a última versão do `master`;
    - instala o MelonLoader 0.7.3 escondido;
    - move outros mods e loaders para `_ModSchedule1_backup` (nada é apagado);
-   - atualiza a si mesmo quando sai uma versão nova.
+   - atualiza a si mesmo quando sai uma versão nova;
+   - aberto, confere o GitHub a cada 5 minutos e mostra o botão **Atualizar** quando sai versão nova (com o jogo aberto, peça para fechá-lo antes).
 3. Clique em **JOGAR**. Deixe o launcher aberto: ele mostra as mensagens e erros do mod em tempo real e, se o jogo crashar, guarda o log em `%LOCALAPPDATA%\ModSchedule1\crash-logs`.
 
 A primeira abertura do jogo demora alguns minutos, porque o MelonLoader gera os assemblies.
@@ -44,8 +45,10 @@ A primeira abertura do jogo demora alguns minutos, porque o MelonLoader gera os 
 | Bank + Laundry | App **Finanças** no celular: banco, lavagem, dealers e transações | pessoal |
 | More Guns | Submetralhadora, pistola de pente estendido, Magnum e escopeta automática no Stan (visual das armas do jogo) | do host |
 | More Clothing | Peças que só NPCs usavam (uniformes etc.) à venda na loja de roupas | do host |
+| Minimap | Minimapa redondo no canto da tela, com os ícones do mapa do celular; gira com a câmera | pessoal |
+| Robbery | Na tela da loja: **Assaltar o caixa** ($350–750, 1x por dia por loja; armado sempre dá certo) e **Furtar o carrinho** (chance de ser visto). O caixa chama a polícia | do host |
 
-**Configurações:** menu do jogo (principal ou pausa) → **Configurações → aba Mods**. Tudo fica salvo em `UserData/ModSchedule1.cfg`.
+**Configurações:** botão **Mods** no menu do jogo (principal ou pausa), logo abaixo de Settings; também em Configurações → aba Mods. Clique no nome de um mod para ver as opções. Tudo fica salvo em `UserData/ModSchedule1.cfg`.
 
 **Multiplayer:** as configs marcadas "do host" são enviadas pelo host para todos (via dados do lobby da Steam) e aparecem travadas para os outros jogadores durante a sessão; o cfg de cada um não é alterado. As "pessoais" cada um ajusta a seu gosto.
 
@@ -63,7 +66,7 @@ O mod é compilado contra os assemblies que o MelonLoader gera na máquina com o
    dotnet build src/ModSchedule1 -c Release
    ```
    O DLL vai para `release/il2cpp/ModSchedule1.dll`. O launcher: `dotnet build launcher/ModSchedule1.Launcher -c Release` gera `release/launcher/ModSchedule1.exe` e `version.txt` (suba o `<Version>` no csproj para os launchers instalados se atualizarem).
-   Verificação da lógica de arquivos do launcher: `dotnet run --project launcher/EngineCheck -c Release`. Faça commit dele junto com `release/features.json` (atualize a `version` lá e em `Core.Version`). Os jogadores recebem a atualização na próxima vez que abrirem o `.bat`.
+   Verificação da lógica de arquivos do launcher: `dotnet run --project launcher/EngineCheck -c Release`. Faça commit dele junto com `release/features.json` (atualize a `version` lá e em `Core.Version`). Os jogadores recebem a atualização ao abrir o launcher, ou pelo botão Atualizar se ele já estiver aberto (só contam commits que mexem em `release/`).
    Para compilar direto da pasta do jogo: `dotnet build src/ModSchedule1 -c Release -p:GameDir="D:\...\Schedule I"`.
 
 **Estrutura:**

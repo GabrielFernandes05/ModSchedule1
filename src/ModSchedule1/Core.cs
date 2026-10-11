@@ -13,7 +13,7 @@ namespace ModSchedule1;
 
 public sealed class Core : MelonMod
 {
-    public const string Version = "0.9.0";
+    public const string Version = "0.10.0";
 
     /// <summary>Every feature of the megamod. Adding a mod = adding a line here (and in release/features.json).</summary>
     public static readonly List<Feature> Features = new()
@@ -37,6 +37,8 @@ public sealed class Core : MelonMod
         new FastActions(),
         new MoreGuns(),
         new MoreClothing(),
+        new Minimap(),
+        new Robbery(),
     };
 
     private static MelonPreferences_Entry<bool> _debug = null!;
@@ -67,7 +69,6 @@ public sealed class Core : MelonMod
         {
             HarmonyInstance.CreateClassProcessor(typeof(PhoneApp.HomeScreenStartPatch)).Patch();
             HarmonyInstance.CreateClassProcessor(typeof(ModsSettingsTab.AwakePatch)).Patch();
-            HarmonyInstance.CreateClassProcessor(typeof(ModsSettingsTab.ShowPatch)).Patch();
             Log.Debug($"apps de celular registrados: {PhoneApp.All.Count}");
         }
         catch (Exception e) { Log.Error($"apps de celular desativados, patch da HomeScreen falhou: {e}"); }
@@ -106,6 +107,7 @@ public sealed class Core : MelonMod
     {
         EndOfDay.Restore();   // rede de segurança: o relógio nunca fica preso em 3:59 entre frames
         PhoneApp.TickOpenApps();
+        ModsSettingsTab.Tick();
         ConfigSync.Tick();
         foreach (var f in Features)
         {

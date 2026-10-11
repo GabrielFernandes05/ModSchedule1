@@ -8,7 +8,7 @@
     <AssemblyName>ModSchedule1</AssemblyName>
     <RootNamespace>ModSchedule1.Launcher</RootNamespace>
     <ApplicationIcon>app.ico</ApplicationIcon>
-    <Version>0.8.0</Version>
+    <Version>0.10.0</Version>
     <Product>ModSchedule1</Product>
     <Company>ModSchedule1</Company>
     <ReleaseDir>$(MSBuildThisFileDirectory)../../release/launcher</ReleaseDir>

@@ -1,5 +1,5 @@
 {
-  "version": "0.9.0",
+  "version": "0.10.0",
   "features": [
     {
       "id": "BetterStacks",
@@ -114,6 +114,18 @@
       "name": "More Clothing",
       "default": true,
       "description": "Roupas e acessórios que só os NPCs usavam, à venda na loja de roupas."
+    },
+    {
+      "id": "Minimap",
+      "name": "Minimap",
+      "default": true,
+      "description": "Minimapa no canto da tela com os ícones do mapa do celular."
+    },
+    {
+      "id": "Robbery",
+      "name": "Robbery",
+      "default": true,
+      "description": "Assaltar o caixa ou furtar o carrinho nas lojas (botões na tela da loja)."
     }
   ]
 }

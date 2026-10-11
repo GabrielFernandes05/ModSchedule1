@@ -154,11 +154,28 @@ namespace ModSchedule1.Launcher
             return wc;
         }
 
+        /// <summary>
+        /// Último commit do master que mexeu em release/ (commits só de docs não contam como atualização).
+        /// O primeiro "sha" da lista é o do commit; os seguintes são de árvore/pais.
+        /// </summary>
         public string RemoteSha()
         {
             using var wc = Client();
-            wc.Headers[HttpRequestHeader.Accept] = "application/vnd.github.sha";
-            return wc.DownloadString($"https://api.github.com/repos/{Repo}/commits/{Branch}").Trim();
+            var json = wc.DownloadString($"https://api.github.com/repos/{Repo}/commits?sha={Branch}&path=release&per_page=1");
+            var m = Regex.Match(json, "\"sha\"\\s*:\\s*\"([0-9a-f]{40})\"");
+            if (!m.Success) throw new InvalidDataException("resposta do GitHub sem commit");
+            return m.Groups[1].Value;
+        }
+
+        /// <summary>Só consulta (não instala): commit novo e a versão do mod publicada nele, ou null se já está em dia.</summary>
+        public string[] CheckUpdate()
+        {
+            var sha = RemoteSha();
+            if (sha == State.Sha) return null;
+            using var wc = Client();
+            wc.Encoding = Encoding.UTF8;
+            var manifest = Json.Parse<Manifest>(wc.DownloadString(RawUrl(sha, "release/features.json")));
+            return new[] { sha, manifest?.Version };
         }
 
         static string RawUrl(string sha, string relPath) => $"https://raw.githubusercontent.com/{Repo}/{sha}/{relPath}";
