@@ -17,12 +17,13 @@ public sealed class Laundry : Feature<Laundry>
     public override string Id => "Laundry";
     public override string Name => "Laundry App";
     public override string Description => "App no celular para lavar dinheiro à distância (e lavagem automática opcional).";
+    public override bool Shared => false;   // pessoal: cada jogador usa a própria config
     // Cada jogador lava o próprio dinheiro em mãos: roda em todos os PCs, sem ser só host.
 
     private const int MinAmount = 10;   // mesmo mínimo da tela do jogo (LaunderingInterface.MinLaunderAmount é const)
-    private MelonPreferences_Entry<bool> _auto = null!;
-    private MelonPreferences_Entry<int> _autoInterval = null!;
-    private MelonPreferences_Entry<int> _keepCash = null!;
+    private Pref<bool> _auto = null!;
+    private Pref<int> _autoInterval = null!;
+    private Pref<int> _keepCash = null!;
     private int _lastAutoMinute = -1;
     // O pedido vai por RPC e a operação só aparece na lista depois da ida e volta: evita lavar duas vezes acima da capacidade.
     private readonly Dictionary<IntPtr, float> _cooldownUntil = new();

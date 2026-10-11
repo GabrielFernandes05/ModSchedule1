@@ -11,7 +11,7 @@ public sealed class WarehouseAlwaysOpen : Feature<WarehouseAlwaysOpen>
     public override string Name => "Warehouse Always Open";
     public override string Description => "Warehouse (Dark Market) aberto a qualquer hora.";
 
-    private MelonPreferences_Entry<bool> _ignoreRank = null!;
+    private Pref<bool> _ignoreRank = null!;
     private bool _unlockSent;
 
     protected override void OnInit()

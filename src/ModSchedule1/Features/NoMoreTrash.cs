@@ -14,8 +14,8 @@ public sealed class NoMoreTrash : Feature<NoMoreTrash>
     public override string Description => "Some com o lixo gerado no mundo. Itens específicos podem ser mantidos na config.";
     public override bool HostOnly => true;   // o lixo é objeto de rede: só o host destrói, os clientes recebem o despawn
 
-    private MelonPreferences_Entry<string> _keep = null!;
-    private MelonPreferences_Entry<bool> _keepBags = null!;
+    private Pref<string> _keep = null!;
+    private Pref<bool> _keepBags = null!;
     private readonly List<TrashItem> _pending = new();
 
     protected override void OnInit()

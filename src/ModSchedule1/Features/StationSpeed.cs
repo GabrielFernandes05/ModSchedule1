@@ -19,25 +19,25 @@ public sealed class StationSpeed : Feature<StationSpeed>
     public override string Name => "Station Speed";
     public override string Description => "Cauldron, chemistry, forno, drying rack, mixing e packaging mais rápidos.";
 
-    private MelonPreferences_Entry<float> _cauldron = null!, _chemistry = null!, _oven = null!, _drying = null!, _mixing = null!, _packaging = null!;
+    private Pref<float> _cauldron = null!, _chemistry = null!, _oven = null!, _drying = null!, _mixing = null!, _packaging = null!;
     // Receitas de chemistry são assets compartilhados que sobrevivem a recarregar o save: guardamos o original.
     private readonly Dictionary<string, int> _recipeOriginals = new();
     private readonly List<StationRecipe> _recipes = new();
 
     protected override void OnInit()
     {
-        MelonPreferences_Entry<float> S(string id, string name) => Setting(id, 2f, name + ": velocidade x N", "1 = normal");
+        Pref<float> S(string id, string name) => Setting(id, 2f, name + ": velocidade x N", "1 = normal");
         _cauldron = S("Cauldron", "Cauldron");
         _chemistry = S("ChemistryStation", "Chemistry station");
         _oven = S("LabOven", "Lab oven");
         _drying = S("DryingRack", "Drying rack");
         _mixing = S("MixingStation", "Mixing station");
         _packaging = S("PackagingStation", "Packaging station (funcionário)");
-        EnabledEntry.OnEntryValueChanged.Subscribe((_, _) => ApplyRecipes());
-        _chemistry.OnEntryValueChanged.Subscribe((_, _) => ApplyRecipes());
+        Enabled.Changed += () => ApplyRecipes();
+        _chemistry.Changed += () => ApplyRecipes();
     }
 
-    private float Mult(MelonPreferences_Entry<float> e) => Active ? Math.Max(0.1f, e.Value) : 1f;
+    private float Mult(Pref<float> e) => Active ? Math.Max(0.1f, e.Value) : 1f;
     private static int Scale(int minutes, float mult) => Math.Max(1, Mathf.RoundToInt(minutes / mult));
 
     private void ApplyRecipes()

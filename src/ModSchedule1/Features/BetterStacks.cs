@@ -16,8 +16,8 @@ public sealed class BetterStacks : Feature<BetterStacks>
     public override string Description => "Pilhas maiores por categoria de item e mixing station com mais capacidade.";
 
     // Multiplicadores por nome de EItemCategory (string, para não quebrar se o jogo renomear categorias).
-    private readonly Dictionary<string, MelonPreferences_Entry<int>> _multipliers = new();
-    private MelonPreferences_Entry<int> _mixCapacity = null!;
+    private readonly Dictionary<string, Pref<int>> _multipliers = new();
+    private Pref<int> _mixCapacity = null!;
     // Valor original de cada definição (por ID): aplicar é sempre original x multiplicador, então ligar/desligar não acumula.
     private readonly Dictionary<string, int> _originals = new();
 
@@ -38,8 +38,8 @@ public sealed class BetterStacks : Feature<BetterStacks>
         Mult("Decoration", 1);
         _mixCapacity = Setting("MixingStationCapacity", 2, "Mixing station: capacidade x N");
 
-        EnabledEntry.OnEntryValueChanged.Subscribe((_, _) => Apply());
-        foreach (var m in _multipliers.Values) m.OnEntryValueChanged.Subscribe((_, _) => Apply());
+        Enabled.Changed += () => Apply();
+        foreach (var m in _multipliers.Values) m.Changed += () => Apply();
     }
 
     public int MultiplierFor(EItemCategory category) =>
@@ -69,7 +69,7 @@ public sealed class BetterStacks : Feature<BetterStacks>
         if (def == null) return false;
         if (!_originals.TryGetValue(def.ID, out int original))
             _originals[def.ID] = original = def.StackLimit;
-        int target = EnabledEntry.Value && !Faulted ? original * MultiplierFor(def.Category) : original;
+        int target = Enabled.Value && !Faulted ? original * MultiplierFor(def.Category) : original;
         if (def.StackLimit == target) return false;
         Log.Debug($"{def.Name} ({def.Category}): pilha {def.StackLimit} -> {target}");
         def.StackLimit = target;

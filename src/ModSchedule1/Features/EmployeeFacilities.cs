@@ -17,7 +17,7 @@ public sealed class EmployeeFacilities : Feature<EmployeeFacilities>
     public override string Description => "Vários funcionários podem dividir a mesma cama/armário.";
     // A prancheta valida na máquina de quem atribui; o servidor não confere. Rótulos são locais. Todos os PCs.
 
-    private MelonPreferences_Entry<int> _cap = null!;
+    private Pref<int> _cap = null!;
 
     protected override void OnInit()
     {

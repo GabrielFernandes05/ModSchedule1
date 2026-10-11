@@ -14,10 +14,11 @@ public sealed class Bank : Feature<Bank>
     public override string Id => "Bank";
     public override string Name => "Bank App";
     public override string Description => "App no celular para depositar e sacar como no ATM.";
+    public override bool Shared => false;   // pessoal: cada jogador usa a própria config
     // O ATM do jogo roda inteiro na máquina do jogador; o app faz as mesmas chamadas, então vale para host e clientes.
 
     public const float WeeklyLimit = 10000f;   // ATM.WeeklyDepositLimit é const no jogo: nunca gravar, só repetir o valor
-    private MelonPreferences_Entry<bool> _respectLimit = null!;
+    private Pref<bool> _respectLimit = null!;
     private float _busyUntil;
 
     protected override void OnInit()

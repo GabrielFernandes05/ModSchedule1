@@ -16,6 +16,7 @@ public sealed class Dealers : Feature<Dealers>
     public override string Id => "Dealers";
     public override string Name => "Dealers App";
     public override string Description => "Resumo de todos os dealers e coleta de dinheiro à distância.";
+    public override bool Shared => false;   // pessoal: cada jogador usa a própria config
     // Coletar = mesma ação do diálogo do jogo (dinheiro vai pra quem clicou, SetCash(0) via RPC): vale para todos.
 
     // Cash é SyncVar: depois de coletar, o valor antigo ainda aparece até o servidor responder.

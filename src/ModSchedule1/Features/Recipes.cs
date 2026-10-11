@@ -19,6 +19,7 @@ public sealed class Recipes : Feature<Recipes>
     public override string Id => "Recipes";
     public override string Name => "Recipe List";
     public override string Description => "App Receitas: receita completa de cada produto, preços e efeitos.";
+    public override bool Shared => false;   // pessoal: cada jogador usa a própria config
 
     protected override void OnInit() => PhoneApp.All.Add(new RecipesApp());
 

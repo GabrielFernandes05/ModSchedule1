@@ -15,8 +15,8 @@ public sealed class BetterEmployees : Feature<BetterEmployees>
     // Todos os PCs: limites de atribuição são checados só na UI de quem usa a prancheta; velocidade/salário valem no host.
 
     private const string SpeedLabel = "ModSchedule1";
-    private MelonPreferences_Entry<float> _workSpeed = null!, _walkSpeed = null!, _wage = null!;
-    private MelonPreferences_Entry<int> _botanistPots = null!, _chemistStations = null!, _handlerStations = null!, _cleanerBins = null!;
+    private Pref<float> _workSpeed = null!, _walkSpeed = null!, _wage = null!;
+    private Pref<int> _botanistPots = null!, _chemistStations = null!, _handlerStations = null!, _cleanerBins = null!;
 
     protected override void OnInit()
     {

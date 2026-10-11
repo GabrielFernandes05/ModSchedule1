@@ -24,6 +24,7 @@ public sealed class Deliveries : Feature<Deliveries>
     public override string Id => "Deliveries";
     public override string Name => "DeliveryApp++";
     public override string Description => "App Entregas: favoritos, pedidos recorrentes e entregas em andamento.";
+    public override bool Shared => false;   // pessoal: cada jogador usa a própria config
 
     public sealed class OrderItem { public string Id = ""; public int Qty; }
     public sealed class Favorite

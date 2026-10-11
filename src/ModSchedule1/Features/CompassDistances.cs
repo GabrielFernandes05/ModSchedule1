@@ -12,8 +12,9 @@ public sealed class CompassDistances : Feature<CompassDistances>
     public override string Id => "CompassDistances";
     public override string Name => "Compass Distances";
     public override string Description => "Sempre mostra a distância dos marcadores na bússola.";
+    public override bool Shared => false;   // pessoal: cada jogador usa a própria config
 
-    private MelonPreferences_Entry<float> _range = null!;
+    private Pref<float> _range = null!;
 
     protected override void OnInit()
     {

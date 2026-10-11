@@ -18,9 +18,10 @@ public sealed class AutoClearDeals : Feature<AutoClearDeals>
     public override string Id => "AutoClearDeals";
     public override string Name => "Auto Clear Completed Deals";
     public override string Description => "Esconde conversas de clientes sem negócio pendente no app Mensagens.";
+    public override bool Shared => false;   // pessoal: cada jogador usa a própria config
     // Estado de UI local de cada jogador: cada PC limpa a própria lista, sem rede.
 
-    private MelonPreferences_Entry<bool> _onlyRead = null!;
+    private Pref<bool> _onlyRead = null!;
 
     protected override void OnInit()
     {

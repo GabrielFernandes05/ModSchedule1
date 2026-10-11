@@ -39,7 +39,7 @@ public sealed class ControlPanelApp : PhoneApp
             var (_, btnText, btnBg) = Ui.Button(row.transform, "", Off, () =>
             {
                 if (f.Faulted) return;
-                f.EnabledEntry.Value = !f.EnabledEntry.Value;
+                f.Enabled.Value = !f.Enabled.Value;
                 MelonPreferences.Save();
                 Refresh();
             });
@@ -47,8 +47,8 @@ public sealed class ControlPanelApp : PhoneApp
             {
                 label.text = f.Name + (f.HostOnly && !SafeIsHost() ? "  <i>(só o host)</i>" : "");
                 label.supportRichText = true;
-                btnText.text = f.Faulted ? "ERRO (ver log)" : f.EnabledEntry.Value ? "ATIVO" : "DESATIVADO";
-                btnBg.color = f.Faulted ? Err : f.EnabledEntry.Value ? On : Off;
+                btnText.text = f.Faulted ? "ERRO (ver log)" : f.Enabled.Value ? "ATIVO" : "DESATIVADO";
+                btnBg.color = f.Faulted ? Err : f.Enabled.Value ? On : Off;
             });
         }
 

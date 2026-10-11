@@ -19,21 +19,24 @@ public abstract class Feature
     public virtual bool DefaultEnabled => true;
     /// <summary>Game logic that only the host may run in multiplayer (clients would desync or double-apply).</summary>
     public virtual bool HostOnly => false;
+    /// <summary>Config de jogo (true): em multiplayer o host define para todos. Pessoal/visual (false): cada um a sua.</summary>
+    public virtual bool Shared => true;
 
     public MelonPreferences_Category Category { get; private set; } = null!;
-    public MelonPreferences_Entry<bool> EnabledEntry { get; private set; } = null!;
+    public Pref<bool> Enabled { get; private set; } = null!;
+    public readonly System.Collections.Generic.List<IPref> Prefs = new();
     public Log Log { get; private set; } = null!;
     public bool Faulted { get; private set; }
 
-    public bool Active => EnabledEntry.Value && !Faulted && (!HostOnly || Net.IsHost);
+    public bool Active => Enabled.Value && !Faulted && (!HostOnly || Net.IsHost);
 
     internal void Init(HarmonyLib.Harmony harmony)
     {
         Log = new Log(Id);
         Category = MelonPreferences.CreateCategory("ModSchedule1_" + Id, Name);
         Category.SetFilePath(ConfigFile, autoload: true, printmsg: false);
-        EnabledEntry = Category.CreateEntry("Enabled", DefaultEnabled, "Ativo", Description);
-        EnabledEntry.OnEntryValueChanged.Subscribe((_, now) => Log.Info(now ? "ativado" : "desativado"));
+        Enabled = Setting("Enabled", DefaultEnabled, "Ativo", Description);
+        Enabled.Changed += () => Log.Info((Enabled.Value ? "ativado" : "desativado") + (Enabled.Overridden ? " (pelo host)" : ""));
         OnInit();
 
         foreach (var nested in GetType().GetNestedTypes(AccessTools.all))
@@ -49,11 +52,16 @@ public abstract class Feature
                 Fault($"patch {nested.Name} falhou (o jogo mudou?)", e);
             }
         }
-        Log.Info($"carregado ({(EnabledEntry.Value ? "ativo" : "desativado")}{(HostOnly ? ", só host" : "")})");
+        Log.Info($"carregado ({(Enabled.Value ? "ativo" : "desativado")}{(HostOnly ? ", só host" : "")}{(Shared ? ", config do host" : "")})");
     }
 
-    protected MelonPreferences_Entry<T> Setting<T>(string id, T defaultValue, string name, string description = "")
-        => Category.CreateEntry(id, defaultValue, name, description);
+    /// <param name="shared">null = segue <see cref="Shared"/> da feature.</param>
+    protected Pref<T> Setting<T>(string id, T defaultValue, string name, string description = "", bool? shared = null)
+    {
+        var pref = new Pref<T>(Category.CreateEntry(id, defaultValue, name, description), Id, shared ?? Shared);
+        Prefs.Add(pref);
+        return pref;
+    }
 
     /// <summary>Botões de ação no painel Ajustes do celular (ex.: "Limpar agora").</summary>
     public virtual System.Collections.Generic.IReadOnlyList<(string Label, Action Run)> Actions =>
