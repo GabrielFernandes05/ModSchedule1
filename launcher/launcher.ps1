@@ -122,7 +122,8 @@ function Update-Release {
         Log "ModSchedule1 já está na última versão ($($sha.Substring(0,7)))"
     }
     Get-RepoFile $sha 'release/features.json' | Out-Null
-    Get-RepoFile $sha "release/$($State.flavor)/$ModDll" | Out-Null
+    try { Get-RepoFile $sha "release/$($State.flavor)/$ModDll" | Out-Null }
+    catch { Log "AVISO: ainda não há $ModDll publicado para a versão '$($State.flavor)'." }
     Save-State
 }
 
@@ -181,7 +182,10 @@ function Sync-Mods {
     }
     $src = Join-Path $Cache "$($State.flavor)\$ModDll"
     $dst = Join-Path $State.gameDir "Mods\$ModDll"
-    if (-not (Test-Path $src)) { throw "Não há $ModDll no cache. Conecte-se à internet e abra o launcher de novo." }
+    if (-not (Test-Path $src)) {
+        Log "AVISO: $ModDll indisponível; o jogo vai abrir só com o MelonLoader (necessário para gerar os assemblies de dev)."
+        return
+    }
     if (-not (Test-Path $dst) -or (Get-FileHash $src).Hash -ne (Get-FileHash $dst).Hash) {
         Copy-Item $src $dst -Force
         Log "$ModDll instalado na pasta Mods"
