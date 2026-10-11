@@ -61,9 +61,12 @@ public sealed class Pref<T> : IPref
 
     public string Serialize() => Format(Entry.Value);
 
+    /// <summary>Teto de sanidade para valores vindos do host (dados do lobby são entrada não confiável).</summary>
+    private const float HardLimit = 1_000_000f;
+
     public void SetOverride(string raw)
     {
-        if (!TryParse(raw, out var v)) return;
+        if (!TryParse(raw, out var v) || !Sane(ref v)) return;
         bool changed = !Overridden || !Equals(v, _override);
         _override = v;
         Overridden = true;
@@ -76,6 +79,26 @@ public sealed class Pref<T> : IPref
         bool changed = !Equals(_override, Entry.Value);
         Overridden = false;
         if (changed) Changed?.Invoke();
+    }
+
+    // Rejeita NaN/infinito e prende números em [Min, HardLimit]: evita overflow (ex.: pilha x 1e9 vira negativa).
+    // Não usa o Max do slider: o host pode ter posto no cfg um valor acima dele e todos precisam do mesmo valor.
+    private bool Sane(ref T value)
+    {
+        switch (value)
+        {
+            case float f:
+                if (float.IsNaN(f) || float.IsInfinity(f)) return false;
+                value = (T)(object)Math.Clamp(f, Min, HardLimit);
+                return true;
+            case int i:
+                value = (T)(object)(int)Math.Clamp(i, Min, HardLimit);
+                return true;
+            case string str:
+                return str.Length <= 2000;
+            default:
+                return true;
+        }
     }
 
     private static string Format(T value) => value switch
