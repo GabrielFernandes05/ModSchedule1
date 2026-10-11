@@ -80,7 +80,8 @@ public sealed class ControlPanelApp : PhoneApp
         var entries = new List<MelonPreferences_Entry>();
         foreach (var e in f.Category.Entries)
             if (e.Identifier != "Enabled") entries.Add(e);
-        if (entries.Count == 0) return null;
+        var actions = f.Actions;
+        if (entries.Count == 0 && actions.Count == 0) return null;
 
         var panel = Ui.Child("Settings_" + f.Id, list);
         var v = panel.AddComponent<VerticalLayoutGroup>();
@@ -117,6 +118,12 @@ public sealed class ControlPanelApp : PhoneApp
                     break;
             }
             _refreshers.Add(refresh);
+        }
+        if (actions.Count > 0)
+        {
+            var row = Ui.Row(panel.transform, 40);
+            foreach (var (label, run) in actions)
+                Ui.Button(row.transform, label, On, () => { run(); Refresh(); }, width: 200, height: 34);
         }
         panel.SetActive(false);
         return panel;

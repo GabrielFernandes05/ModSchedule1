@@ -55,6 +55,10 @@ public abstract class Feature
     protected MelonPreferences_Entry<T> Setting<T>(string id, T defaultValue, string name, string description = "")
         => Category.CreateEntry(id, defaultValue, name, description);
 
+    /// <summary>Botões de ação no painel Ajustes do celular (ex.: "Limpar agora").</summary>
+    public virtual System.Collections.Generic.IReadOnlyList<(string Label, Action Run)> Actions =>
+        Array.Empty<(string, Action)>();
+
     protected virtual void OnInit() { }
     public virtual void OnSceneLoaded(string scene) { }
     public virtual void OnUpdate() { }

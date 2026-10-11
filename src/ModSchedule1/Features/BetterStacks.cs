@@ -13,12 +13,11 @@ public sealed class BetterStacks : Feature<BetterStacks>
 {
     public override string Id => "BetterStacks";
     public override string Name => "Better Stacks";
-    public override string Description => "Pilhas maiores por categoria de item e mixing station maior/mais rápida.";
+    public override string Description => "Pilhas maiores por categoria de item e mixing station com mais capacidade.";
 
     // Multiplicadores por nome de EItemCategory (string, para não quebrar se o jogo renomear categorias).
     private readonly Dictionary<string, MelonPreferences_Entry<int>> _multipliers = new();
     private MelonPreferences_Entry<int> _mixCapacity = null!;
-    private MelonPreferences_Entry<int> _mixSpeed = null!;
     // Valor original de cada definição (por ID): aplicar é sempre original x multiplicador, então ligar/desligar não acumula.
     private readonly Dictionary<string, int> _originals = new();
 
@@ -38,7 +37,6 @@ public sealed class BetterStacks : Feature<BetterStacks>
         Mult("Lighting", 1);
         Mult("Decoration", 1);
         _mixCapacity = Setting("MixingStationCapacity", 2, "Mixing station: capacidade x N");
-        _mixSpeed = Setting("MixingStationSpeed", 2, "Mixing station: velocidade x N");
 
         EnabledEntry.OnEntryValueChanged.Subscribe((_, _) => Apply());
         foreach (var m in _multipliers.Values) m.OnEntryValueChanged.Subscribe((_, _) => Apply());
@@ -85,19 +83,16 @@ public sealed class BetterStacks : Feature<BetterStacks>
         private static void Postfix(ItemDefinition item) => I.Guard("AddToRegistry", () => I.ApplyTo(item));
     }
 
-    // ponytail: aplicado quando a estação nasce; mudar a config vale para estações carregadas depois.
-    [HarmonyPatch(typeof(MixingStation), "Start")]
+    // Awake roda antes de InitializeGridItem montar a config do funcionário (slider de quantidade usa MaxMixQuantity).
+    // Velocidade da mixing station ficou no StationSpeed.
+    [HarmonyPatch(typeof(MixingStation), nameof(MixingStation.Awake))]
     private static class MixingStationPatch
     {
-        private static void Prefix(MixingStation __instance)
+        private static void Postfix(MixingStation __instance) => I.Guard("MixingStation.Awake", () =>
         {
-            I.Guard("MixingStation.Start", () =>
-            {
-                int oldQty = __instance.MaxMixQuantity, oldTime = __instance.MixTimePerItem;
-                __instance.MaxMixQuantity = oldQty * System.Math.Max(1, I._mixCapacity.Value);
-                __instance.MixTimePerItem = System.Math.Max(1, oldTime / System.Math.Max(1, I._mixSpeed.Value));
-                I.Log.Debug($"mixing station: qtd {oldQty}->{__instance.MaxMixQuantity}, tempo/item {oldTime}->{__instance.MixTimePerItem}");
-            });
-        }
+            int old = __instance.MaxMixQuantity;
+            __instance.MaxMixQuantity = old * System.Math.Max(1, I._mixCapacity.Value);
+            I.Log.Debug($"mixing station: capacidade {old} -> {__instance.MaxMixQuantity}");
+        });
     }
 }

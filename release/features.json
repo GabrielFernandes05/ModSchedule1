@@ -1,11 +1,11 @@
 {
-  "version": "0.3.1",
+  "version": "0.4.0",
   "features": [
     {
       "id": "BetterStacks",
       "name": "Better Stacks",
       "default": true,
-      "description": "Pilhas maiores por categoria de item; mixing station maior e mais rápida."
+      "description": "Pilhas maiores por categoria de item; mixing station com mais capacidade."
     },
     {
       "id": "NoMoreTrash",
@@ -42,6 +42,24 @@
       "name": "Absorbent Soil",
       "default": true,
       "description": "Aditivos ficam no solo entre colheitas enquanto o solo tiver usos."
+    },
+    {
+      "id": "StationSpeed",
+      "name": "Station Speed",
+      "default": true,
+      "description": "Cauldron, chemistry, forno, drying rack, mixing e packaging mais rápidos."
+    },
+    {
+      "id": "BetterEmployees",
+      "name": "Better Employees",
+      "default": true,
+      "description": "Trabalho e passo mais rápidos, salário ajustável, mais estações por funcionário."
+    },
+    {
+      "id": "AutoClearDeals",
+      "name": "Auto Clear Completed Deals",
+      "default": true,
+      "description": "Esconde conversas de clientes sem negócio pendente no app Mensagens."
     }
   ]
 }
