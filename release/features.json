@@ -1,5 +1,5 @@
 {
-  "version": "0.5.0",
+  "version": "0.6.0",
   "features": [
     {
       "id": "BetterStacks",
@@ -78,6 +78,24 @@
       "name": "Dealers App",
       "default": true,
       "description": "App Dealers: resumo de todos os dealers e coleta de dinheiro à distância."
+    },
+    {
+      "id": "Recipes",
+      "name": "Recipe List",
+      "default": true,
+      "description": "App Receitas: receita completa de cada produto, preços e efeitos."
+    },
+    {
+      "id": "Deliveries",
+      "name": "DeliveryApp++",
+      "default": true,
+      "description": "App Entregas: favoritos, pedidos recorrentes e entregas em andamento."
+    },
+    {
+      "id": "EmployeeFacilities",
+      "name": "Employee Facilities",
+      "default": true,
+      "description": "Vários funcionários podem dividir a mesma cama/armário."
     }
   ]
 }

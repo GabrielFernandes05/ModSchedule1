@@ -19,14 +19,25 @@ O botão **Instalação limpa** refaz tudo do zero. A configuração fica em `<j
 
 ## Mods
 
-| Mod | Status |
+| Mod | O que faz |
 |---|---|
-| Better Stacks | v0.1 |
-| No More Trash | v0.1 |
-| Painel no celular (substitui o Mod Manager) | em andamento |
-| Absorbent Soil, Compass Distances, Auto Clear Deals, Warehouse Always Open, Employees Always Work/Plants Grow, Quality Bonus, Station Upgrades, Better Employees | próximos (fáceis) |
-| Bank, Laundry, DealersPlus, Operations, Delivery++, Recipe List, Employee Facilities | médio (apps no celular) |
-| More Guns, More Clothing, Minimap, Robbery | v2 (assets novos) |
+| Better Stacks | Pilhas maiores por categoria; mixing station com mais capacidade |
+| No More Trash | Remove o lixo gerado no mundo (só host) |
+| Compass Distances | Distância de todos os marcadores na bússola |
+| Warehouse Always Open | Warehouse aberto 24h (desbloqueio sem rank opcional) |
+| Plants Always Grow | Plantas e cogumelos crescem depois das 4h |
+| Employees Always Work | Funcionários trabalham depois das 4h (só host) |
+| Absorbent Soil | Aditivos ficam no solo entre colheitas |
+| Station Speed | Estações mais rápidas (multiplicador por tipo) |
+| Better Employees | Trabalho/passo mais rápidos, salário ajustável, mais estações por funcionário |
+| Auto Clear Completed Deals | Esconde conversas de clientes sem negócio pendente |
+| Employee Facilities | Funcionários dividem cama/armário |
+| Apps: Mods, Banco, Lavagem, Dealers, Receitas, Entregas | No celular do jogo |
+
+Próximos (v2, precisam de assets novos): More Guns, More Clothing, Minimap, Robbery.
+
+**Config:** cada mod tem "Ajustes" no app Mods do celular; tudo fica em `UserData/ModSchedule1.cfg`.
+No multiplayer, Better Stacks e Station Speed precisam da mesma config em todos os PCs.
 
 ## Desenvolvimento
 
