@@ -19,21 +19,38 @@ public static class Ui
     {
         public static Font? Font;
         public static Color Text = Color.white;
+        public static Color Accent = new(0.3f, 0.8f, 0.4f);
         public static Color Background = new(0.08f, 0.09f, 0.11f, 1f);
         public static Sprite? BackgroundSprite;
-        public static Button? ButtonTemplate;
-        public static bool Captured;
+        public static Sprite? CardSprite;
+        public static Color Card = new(1f, 1f, 1f, 0.06f);
 
+        /// <summary>
+        /// Lê o estilo do app de dealers do jogo: o bloco "Cash" (CashLabel.parent) é um card arredondado com um
+        /// título (cor padrão de texto) e o valor (cor de destaque).
+        /// </summary>
         public static void Capture()
         {
-            Captured = false;
             if (!Il2CppScheduleOne.UI.Phone.Messages.DealerManagementApp.InstanceExists) return;
             var app = Il2CppScheduleOne.UI.Phone.Messages.DealerManagementApp.Instance;
-            if (app.CashLabel != null) { Font = app.CashLabel.font; Text = app.CashLabel.color; }
-            ButtonTemplate = app.AssignCustomerButton;
+            if (app.CashLabel != null)
+            {
+                Accent = app.CashLabel.color;
+                var card = app.CashLabel.transform.parent;
+                var title = card.Find("Title")?.GetComponent<UnityEngine.UI.Text>();
+                Font = title != null ? title.font : app.CashLabel.font;
+                Text = title != null ? title.color : Color.white;
+                var cardImage = card.GetComponent<Image>();
+                if (cardImage != null) { CardSprite = cardImage.sprite; Card = cardImage.color; }
+            }
             var bg = app.appContainer != null ? app.appContainer.GetComponentInChildren<Image>(true) : null;
             if (bg != null) { Background = bg.color; BackgroundSprite = bg.sprite; }
-            Captured = true;
+        }
+
+        public static void Style(Image image, Color color)
+        {
+            image.color = color;
+            if (CardSprite != null) { image.sprite = CardSprite; image.type = Image.Type.Sliced; }
         }
     }
 
@@ -97,7 +114,7 @@ public static class Ui
     public static GameObject Card(Transform parent)
     {
         var go = Child("Card", parent);
-        go.AddComponent<Image>().color = new Color(1f, 1f, 1f, 0.05f);
+        Native.Style(go.AddComponent<Image>(), Native.Card);
         var v = go.AddComponent<VerticalLayoutGroup>();
         v.spacing = 4;
         v.padding = new RectOffset(14, 14, 10, 10);
@@ -140,23 +157,17 @@ public static class Ui
     public static (Button button, Text label, Image bg) Button(Transform parent, string label, Color color, Action onClick,
         float width = 160, float height = 40)
     {
-        if (Native.ButtonTemplate != null)
-        {
-            // botão clonado do app nativo: mesma cor/sprite/fonte; a cor pedida vira só um leve tom
-            var b = NativeUi.CloneButton(Native.ButtonTemplate, parent, "Button", onClick);
-            b.GetComponent<LayoutElement>().ignoreLayout = false;
-            var nle = b.GetComponent<LayoutElement>();
-            nle.minWidth = nle.preferredWidth = width;
-            nle.minHeight = nle.preferredHeight = height;
-            var nlabel = b.GetComponentInChildren<Text>(true);
-            if (nlabel != null) { nlabel.text = label; nlabel.resizeTextForBestFit = true; nlabel.resizeTextMinSize = 10; }
-            return (b, nlabel!, b.GetComponent<Image>());
-        }
         var go = Child("Button", parent);
         var bg = go.AddComponent<Image>();
-        bg.color = color;
+        // cor pedida = destaque (ex.: Depositar); default = card um pouco mais claro que o fundo do card
+        Native.Style(bg, color.a > 0 ? color : Color.Lerp(Native.Card, Native.Text, 0.12f));
         var btn = go.AddComponent<Button>();
         btn.targetGraphic = bg;
+        var colors = btn.colors;
+        colors.highlightedColor = new Color(1.15f, 1.15f, 1.15f, 1f);
+        colors.pressedColor = new Color(0.85f, 0.85f, 0.85f, 1f);
+        colors.disabledColor = new Color(1f, 1f, 1f, 0.4f);
+        btn.colors = colors;
         btn.onClick.AddListener((UnityEngine.Events.UnityAction)onClick);
         var le = go.AddComponent<LayoutElement>();
         le.minWidth = le.preferredWidth = width;
@@ -169,7 +180,7 @@ public static class Ui
         txt.fontSize = 16;
         txt.fontStyle = FontStyle.Bold;
         txt.alignment = TextAnchor.MiddleCenter;
-        txt.color = Color.white;
+        txt.color = Native.Text;
         return (btn, txt, bg);
     }
 

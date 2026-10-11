@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using HarmonyLib;
 using Il2CppInterop.Runtime.InteropTypes.Arrays;
 using Il2CppScheduleOne;
@@ -26,7 +27,7 @@ internal static class ModsSettingsTab
     private const string TabName = "MS1_ModsTab";
     private static readonly List<Action> Refreshers = new();
     private static int _tabIndex = -1;
-    private static bool _dumped;
+    private static bool _dumped, _dumpedBar;
 
     [HarmonyPatch(typeof(SettingsScreen), nameof(SettingsScreen.Awake))]
     internal static class AwakePatch
@@ -72,16 +73,22 @@ internal static class ModsSettingsTab
         var sliderRow = sliderTemplate != null ? RowRoot(sliderTemplate.transform) : null;
         var font = toggleTemplate.GetComponentInChildren<TextMeshProUGUI>(true);
 
-        // aba: clone da última aba existente
+        // aba: clone da última aba. A barra pode ter um wrapper por aba: clonamos a "raiz" da aba (filho direto da barra).
         var last = cats[cats.Length - 1];
-        var tabGo = Object.Instantiate(last.Toggle.gameObject, last.Toggle.transform.parent, false);
+        var roots = new List<RectTransform>();
+        for (int i = 0; i < cats.Length; i++) roots.Add(TabRoot(cats[i].Toggle.transform).GetComponent<RectTransform>());
+        var bar = roots[roots.Count - 1].parent;
+        NativeUi.DumpOnce(ref _dumpedBar, bar, "barra de abas das Configurações", 3);
+        var tabGo = Object.Instantiate(roots[roots.Count - 1].gameObject, bar, false);
         tabGo.name = TabName;
-        var tab = tabGo.GetComponent<Toggle>();
+        var tab = tabGo.GetComponentInChildren<Toggle>(true);
+        tab.gameObject.name = TabName;
         tab.onValueChanged = new Toggle.ToggleEvent();
-        var tabLabel = tabGo.GetComponentInChildren<TextMeshProUGUI>(true);
-        if (tabLabel != null) tabLabel.text = "Mods";
-        var tabSelectable = tabGo.GetComponent<UISelectable>();
+        tab.isOn = false;
+        foreach (var label in tabGo.GetComponentsInChildren<TextMeshProUGUI>(true)) label.text = "Mods";
+        var tabSelectable = tab.GetComponent<UISelectable>();
         if (tabSelectable != null && screen.Tab != null) screen.Tab.AddSelectable(tabSelectable);
+        if (bar.GetComponent<LayoutGroup>() == null) FitTabs(roots, tabGo.GetComponent<RectTransform>());
 
         // painel: clone do painel que já tem rolagem (muitas linhas); senão, rolagem nossa
         GameObject sourcePanel = last.Panel;
@@ -143,6 +150,36 @@ internal static class ModsSettingsTab
         _tabIndex = cats.Length;
         panel.SetActive(false);
         Log.Info($"aba Mods criada ({Refreshers.Count} itens)");
+    }
+
+    /// <summary>Sobe por wrappers de filho único até o elemento que é filho direto da barra de abas.</summary>
+    private static Transform TabRoot(Transform toggle)
+    {
+        var r = toggle;
+        for (int i = 0; i < 3 && r.parent != null && r.parent.childCount == 1; i++) r = r.parent;
+        return r;
+    }
+
+    /// <summary>
+    /// Barra sem layout automático: o clone nasceria em cima da última aba. Redistribui as N+1 abas no mesmo espaço
+    /// que as N ocupavam (mesmo eixo, largura proporcional), então a barra não estoura para fora da tela.
+    /// </summary>
+    private static void FitTabs(List<RectTransform> tabs, RectTransform ours)
+    {
+        int n = tabs.Count;
+        if (n < 2) { ours.anchoredPosition = tabs[0].anchoredPosition + new Vector2(tabs[0].rect.width + 10, 0); return; }
+        Vector2 first = tabs[0].anchoredPosition, lastPos = tabs[n - 1].anchoredPosition;
+        bool horizontal = Mathf.Abs(lastPos.x - first.x) >= Mathf.Abs(lastPos.y - first.y);
+        Vector2 step = (lastPos - first) / n;   // n+1 abas no vão que antes tinha n-1 intervalos
+        float scale = n / (float)(n + 1);
+        var all = new List<RectTransform>(tabs) { ours };
+        for (int i = 0; i < all.Count; i++)
+        {
+            all[i].anchoredPosition = first + step * i;
+            var size = tabs[n - 1].sizeDelta;
+            all[i].sizeDelta = horizontal ? new Vector2(size.x * scale, size.y) : new Vector2(size.x, size.y * scale);
+        }
+        Log.Debug($"abas redistribuídas ({(horizontal ? "horizontal" : "vertical")}): {n} -> {n + 1}");
     }
 
     /// <summary>Raiz da linha = ancestral cujo pai tem o LayoutGroup que empilha as linhas.</summary>

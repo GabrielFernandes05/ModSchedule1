@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Il2CppScheduleOne.GameTime;
 using Il2CppScheduleOne.Money;
+using Il2CppScheduleOne.Persistence;
 using Il2CppScheduleOne.Property;
 using Il2CppScheduleOne.Variables;
 using MelonLoader;
@@ -73,9 +74,13 @@ public sealed class Laundry : Feature<Laundry>
     public override void OnUpdate()
     {
         if (!_auto.Value || !TimeManager.InstanceExists || !MoneyManager.InstanceExists) return;
+        // Só depois do save carregar: antes disso as operações em andamento ainda não voltaram para a lista e a
+        // capacidade livre parece cheia (a 0.8 lavou $2.000 a mais assim, logo ao entrar).
+        if (!LoadManager.InstanceExists || !LoadManager.Instance.IsGameLoaded) return;
         var tm = TimeManager.Instance;
         int now = tm.ElapsedDays * 1440 + tm.DailyMinSum;
-        if (_lastAutoMinute >= 0 && now - _lastAutoMinute < Math.Max(1, _autoInterval.Value)) return;
+        if (_lastAutoMinute < 0) { _lastAutoMinute = now; return; }   // primeira lavagem só depois de um intervalo
+        if (now - _lastAutoMinute < Math.Max(1, _autoInterval.Value)) return;
         _lastAutoMinute = now;
         foreach (var b in Business.OwnedBusinesses)
         {

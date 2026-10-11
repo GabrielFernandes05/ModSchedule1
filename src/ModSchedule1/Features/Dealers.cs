@@ -10,19 +10,20 @@ using UnityEngine.UI;
 namespace ModSchedule1.Features;
 
 /// <summary>
-/// Coletar o dinheiro dos dealers à distância, dentro do app nativo de dealers do celular: botão "Coletar $X" ao lado
-/// do dinheiro do dealer exibido e "Coletar todos" no topo. Mesma ação do diálogo do jogo (Dealer.CollectCash).
+/// Coletar o dinheiro dos dealers à distância: clicando no bloco "Cash" do app nativo de dealers, ou em
+/// "Coletar de todos" no app Finanças. Mesma ação do diálogo do jogo (Dealer.CollectCash).
 /// </summary>
 public sealed class Dealers : Feature<Dealers>
 {
     public override string Id => "Dealers";
     public override string Name => "Dealers+";
-    public override string Description => "Coletar dinheiro dos dealers pelo app de dealers do celular.";
+    public override string Description => "Coletar dinheiro dos dealers: clique no Cash do app de dealers, ou Finanças > Coletar de todos.";
     public override bool Shared => false;   // pessoal: cada jogador usa a própria config
 
     // Cash é SyncVar: depois de coletar, o valor antigo ainda aparece até o servidor responder.
     private readonly Dictionary<IntPtr, float> _collectedAt = new();
-    private Button? _collect, _collectAll;
+    private Button? _cardButton;
+    private string? _titleOriginal;
     private bool _dumped;
 
     public static IEnumerable<Dealer> Recruited()
@@ -45,34 +46,45 @@ public sealed class Dealers : Feature<Dealers>
 
     public override void OnSceneLoaded(string scene) => _collectedAt.Clear();
 
-    private void Refresh(DealerManagementApp app)
+    public float CollectAll()
     {
-        if (_collect == null || _collectAll == null)
-        {
-            NativeUi.DumpOnce(ref _dumped, app.CashLabel.transform.parent, "DealerManagementApp (CashLabel.parent)");
-            // Clona o botão de texto nativo do app (Assign customer) para ficar com a mesma cara.
-            _collect = NativeUi.CloneButton(app.AssignCustomerButton, app.CashLabel.transform, "MS1_Collect", () =>
-                Guard("coletar", () => { var d = app.SelectedDealer; if (d != null) Collect(d); Refresh(app); }));
-            _collectAll = NativeUi.CloneButton(app.AssignCustomerButton, app.Content, "MS1_CollectAll", () =>
-                Guard("coletar todos", () => { foreach (var d in Recruited()) Collect(d); Refresh(app); }));
-            NativeUi.Place(_collectAll, new Vector2(1, 1), new Vector2(1, 1), new Vector2(-12, -8), new Vector2(230, 36));
-        }
+        float total = 0;
+        foreach (var d in Recruited()) total += Collect(d);
+        return total;
+    }
 
-        var dealer = app.SelectedDealer;
-        _collect.gameObject.SetActive(Active && dealer != null);
-        _collectAll.gameObject.SetActive(Active);
-        if (dealer != null)
-        {
-            // logo à direita do texto do dinheiro (a largura muda com o valor)
-            NativeUi.Place(_collect, new Vector2(0, 0.5f), new Vector2(0, 0.5f),
-                new Vector2(app.CashLabel.preferredWidth + 12, 0), new Vector2(170, 32));
-            NativeUi.SetText(_collect, Pending(dealer) ? "coletando..." : dealer.Cash > 0 ? $"Coletar {Ui.Money(dealer.Cash)}" : "sem dinheiro");
-            _collect.interactable = dealer.Cash > 0 && !Pending(dealer);
-        }
+    public float TotalHeld()
+    {
         float total = 0;
         foreach (var d in Recruited()) if (!Pending(d)) total += d.Cash;
-        NativeUi.SetText(_collectAll, total > 0 ? $"Coletar todos ({Ui.Money(total)})" : "Nada para coletar");
-        _collectAll.interactable = total > 0;
+        return total;
+    }
+
+    /// <summary>
+    /// O bloco "Cash" do app nativo vira botão (sem elementos novos no layout do jogo): clicar coleta o dinheiro do
+    /// dealer exibido. O título avisa; "Coletar de todos" fica no app Finanças.
+    /// </summary>
+    private void Refresh(DealerManagementApp app)
+    {
+        var card = app.CashLabel.transform.parent;
+        var title = card.Find("Title")?.GetComponent<Text>();
+        _titleOriginal ??= title?.text;
+        if (_cardButton == null || _cardButton.gameObject != card.gameObject)
+        {
+            NativeUi.DumpOnce(ref _dumped, card, "DealerManagementApp (bloco Cash)");
+            _cardButton = card.GetComponent<Button>() ?? card.gameObject.AddComponent<Button>();
+            _cardButton.targetGraphic = card.GetComponent<Image>();
+            _cardButton.onClick.AddListener((UnityEngine.Events.UnityAction)new Action(() =>
+                Guard("coletar", () => { var d = app.SelectedDealer; if (d != null) Collect(d); Refresh(app); })));
+        }
+        var dealer = app.SelectedDealer;
+        bool can = Active && dealer != null && dealer.Cash > 0 && !Pending(dealer);
+        _cardButton.enabled = Active;
+        _cardButton.interactable = can;
+        if (title != null)
+            title.text = !Active || dealer == null ? _titleOriginal ?? "Cash"
+                : Pending(dealer) ? "Cash (coletando...)"
+                : dealer.Cash > 0 ? "Cash (clique p/ coletar)" : _titleOriginal ?? "Cash";
     }
 
     [HarmonyPatch(typeof(DealerManagementApp), nameof(DealerManagementApp.SetDisplayedDealer))]

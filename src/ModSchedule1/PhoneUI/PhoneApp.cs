@@ -67,8 +67,9 @@ public abstract class PhoneApp
         hrt.pivot = new Vector2(0.5f, 1);
         hrt.sizeDelta = new Vector2(0, 60);
         hrt.anchoredPosition = Vector2.zero;
-        header.AddComponent<Image>().color = Color.Lerp(Ui.Native.Background, Ui.Native.Text, 0.08f);
+        header.AddComponent<Image>().color = Color.Lerp(Ui.Native.Background, Color.black, 0.25f);
         titleText = Ui.Text(header.transform, "  " + title, 26, bold: true);
+        titleText.color = Ui.Native.Accent;
         var trt = titleText.GetComponent<RectTransform>();
         trt.anchorMin = Vector2.zero; trt.anchorMax = Vector2.one; trt.offsetMin = trt.offsetMax = Vector2.zero;
         return Ui.ScrollList(container.transform, topMargin: 64);

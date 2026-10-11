@@ -82,29 +82,50 @@ public sealed class Deliveries : Feature<Deliveries>
 
     private static readonly Color StarOn = new(0.95f, 0.75f, 0.2f);
 
-    /// <summary>★ e "Todo dia" à esquerda do botão de repetir de cada pedido (filhos dele, fora do layout).</summary>
+    /// <summary>
+    /// "Favoritar" e "Repetir" numa linha própria no fim da lista de itens do pedido (_ItemEntryContainer: o jogo só
+    /// liga/desliga as linhas de item, com layout automático; a nossa entra embaixo sem sobrepor nada).
+    /// Botões clonados do "Reorder" nativo.
+    /// </summary>
     private void AddButtons(DeliveryReceiptDisplay display)
     {
         var reorder = display.ReorderButton;
-        if (reorder == null || _buttons.ContainsKey(display.Pointer)) return;
-        NativeUi.DumpOnce(ref _dumped, reorder.transform.parent, "DeliveryReceiptDisplay (botão reorder)");
-        var b = new ReceiptButtons();
-        b.Star = NativeUi.CloneButton(reorder, reorder.transform, "MS1_Star", () => Guard("favoritar", () => ToggleFavorite(display)));
-        b.Repeat = NativeUi.CloneButton(reorder, reorder.transform, "MS1_Repeat", () => Guard("recorrente", () => CycleRepeat(display)));
-        foreach (var child in new[] { b.Star, b.Repeat })   // tira o rótulo de preço clonado do botão original
-            foreach (var t in child.GetComponentsInChildren<Text>(true)) t.text = "";
-        float h = reorder.GetComponent<RectTransform>().rect.height;
-        NativeUi.Place(b.Star, new Vector2(0, 0.5f), new Vector2(1, 0.5f), new Vector2(-6, 0), new Vector2(110, h));
-        NativeUi.Place(b.Repeat, new Vector2(0, 0.5f), new Vector2(1, 0.5f), new Vector2(-122, 0), new Vector2(130, h));
+        var items = display._ItemEntryContainer;
+        if (reorder == null || items == null || _buttons.ContainsKey(display.Pointer)) return;
+        NativeUi.DumpOnce(ref _dumped, display.transform, "DeliveryReceiptDisplay", 3);
+        var row = Ui.Child("MS1_FavRow", items);
+        var h = row.AddComponent<HorizontalLayoutGroup>();
+        h.spacing = 8;
+        h.childAlignment = TextAnchor.MiddleLeft;
+        h.childControlWidth = h.childControlHeight = true;
+        h.childForceExpandWidth = h.childForceExpandHeight = false;
+        var rle = row.AddComponent<LayoutElement>();
+        rle.minHeight = rle.preferredHeight = 30;
+        var b = new ReceiptButtons
+        {
+            Star = RowButton(reorder, row.transform, "MS1_Star", 110, () => Guard("favoritar", () => ToggleFavorite(display))),
+            Repeat = RowButton(reorder, row.transform, "MS1_Repeat", 140, () => Guard("recorrente", () => CycleRepeat(display))),
+        };
         _buttons[display.Pointer] = b;
+    }
+
+    private static Button RowButton(Button template, Transform row, string name, float width, Action onClick)
+    {
+        var b = NativeUi.CloneButton(template, row, name, onClick);
+        var le = b.GetComponent<LayoutElement>();
+        le.ignoreLayout = false;
+        le.minWidth = le.preferredWidth = width;
+        le.minHeight = le.preferredHeight = 28;
+        foreach (var t in b.GetComponentsInChildren<Text>(true)) t.text = "";   // tira o preço clonado do Reorder
+        return b;
     }
 
     private void Bind(DeliveryReceiptDisplay display)
     {
         if (!_buttons.TryGetValue(display.Pointer, out var b) || b.Star == null) return;
         var receipt = display.Receipt;
-        b.Star.gameObject.SetActive(Active && receipt != null);
-        b.Repeat.gameObject.SetActive(Active && receipt != null);
+        b.Star.transform.parent.gameObject.SetActive(Active && receipt != null);
+        b.Star.transform.parent.SetAsLastSibling();
         if (receipt == null) return;
         var fav = FindFavorite(receipt);
         NativeUi.SetText(b.Star, fav != null ? "Favorito" : "Favoritar");   // ASCII: a fonte do jogo pode não ter ★

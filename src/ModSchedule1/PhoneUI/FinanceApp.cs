@@ -18,7 +18,10 @@ public sealed class FinanceApp : PhoneApp
 
     private Transform _list = null!;
     private Text _summary = null!, _selected = null!, _ledger = null!;
-    private GameObject _bankCard = null!;
+    private GameObject _bankCard = null!, _dealersCard = null!;
+    private Text _dealers = null!, _collectAllLabel = null!;
+
+    private static Color Accent() => Color.Lerp(Ui.Native.Card, Ui.Native.Accent, 0.35f);
     private Transform _laundry = null!;
     private readonly List<(Business Business, Text Info, Text Ops, Text MaxLabel)> _rows = new();
     private int _builtFor = -1;
@@ -48,8 +51,8 @@ public sealed class FinanceApp : PhoneApp
         Ui.Button(max.transform, "Máx. depósito", default, () => { _amount = Bank.I.MaxDeposit; OnTick(); }, width: 170, height: 34);
         Ui.Button(max.transform, "Máx. saque", default, () => { _amount = Bank.Online; OnTick(); }, width: 170, height: 34);
         var act = Ui.Row(_bankCard.transform, 46);
-        Ui.Button(act.transform, "Depositar", default, () => Bank.I.Guard("depositar", () => { if (Bank.I.Deposit(_amount)) _amount = 0; OnTick(); }), width: 200, height: 40);
-        Ui.Button(act.transform, "Sacar", default, () => Bank.I.Guard("sacar", () => { if (Bank.I.Withdraw(_amount)) _amount = 0; OnTick(); }), width: 200, height: 40);
+        Ui.Button(act.transform, "Depositar", Accent(), () => Bank.I.Guard("depositar", () => { if (Bank.I.Deposit(_amount)) _amount = 0; OnTick(); }), width: 200, height: 40);
+        Ui.Button(act.transform, "Sacar", Accent(), () => Bank.I.Guard("sacar", () => { if (Bank.I.Withdraw(_amount)) _amount = 0; OnTick(); }), width: 200, height: 40);
 
         // lavagem: um cartão por negócio (montado no OnTick, muda quando compra negócio)
         Ui.Text(_list, "Lavagem de dinheiro", 20, bold: true);
@@ -59,6 +62,14 @@ public sealed class FinanceApp : PhoneApp
         v.childControlWidth = v.childControlHeight = true;
         v.childForceExpandWidth = true;
         v.childForceExpandHeight = false;
+
+        // dealers: dinheiro com eles + coletar de todos (o app nativo de dealers coleta um por vez)
+        _dealersCard = Ui.Card(_list);
+        Ui.Text(_dealersCard.transform, "Dealers", 20, bold: true);
+        _dealers = Ui.Text(_dealersCard.transform, "", 15, minHeight: 20);
+        _dealers.supportRichText = true;
+        var drow = Ui.Row(_dealersCard.transform, 44);
+        (_, _collectAllLabel, _) = Ui.Button(drow.transform, "", Accent(), () => Dealers.I.Guard("coletar de todos", () => { Dealers.I.CollectAll(); OnTick(); }), width: 280, height: 38);
 
         Ui.Text(_list, "Últimas transações (desta sessão)", 18, bold: true);
         _ledger = Ui.Text(_list, "", 14, minHeight: 20);
@@ -79,6 +90,17 @@ public sealed class FinanceApp : PhoneApp
 
         _laundry.gameObject.SetActive(laundry);
         if (laundry) TickLaundry();
+
+        _dealersCard.SetActive(Dealers.I.Active);
+        if (Dealers.I.Active)
+        {
+            var dealerLines = new List<string>();
+            foreach (var d in Dealers.Recruited())
+                dealerLines.Add($"{d.FullName}: <b>{Ui.Money(d.Cash)}</b>{(Dealers.I.Pending(d) ? " (coletando...)" : "")}");
+            _dealers.text = dealerLines.Count > 0 ? string.Join("   •   ", dealerLines) : "Nenhum dealer recrutado.";
+            float held = Dealers.I.TotalHeld();
+            _collectAllLabel.text = held > 0 ? $"Coletar de todos ({Ui.Money(held)})" : "Nada para coletar";
+        }
 
         var ledger = MoneyManager.Instance.ledger;
         var lines = new List<string>();
@@ -126,7 +148,7 @@ public sealed class FinanceApp : PhoneApp
             var ops = Ui.Text(card.transform, "", 15, minHeight: 20);
             ops.color = Ui.Muted;
             var row = Ui.Row(card.transform, 40);
-            var (_, maxLabel, _) = Ui.Button(row.transform, "", default,
+            var (_, maxLabel, _) = Ui.Button(row.transform, "", Accent(),
                 () => Laundry.I.Guard("lavar máximo", () => Laundry.I.Launder(b, Laundry.I.MaxFor(b, keepReserve: true))), width: 240, height: 34);
             Ui.Button(row.transform, "Lavar metade", default,
                 () => Laundry.I.Guard("lavar metade", () => Laundry.I.Launder(b, Laundry.I.MaxFor(b, keepReserve: true) / 2)), width: 160, height: 34);

@@ -14,6 +14,7 @@ public sealed class PlantsAlwaysGrow : Feature<PlantsAlwaysGrow>
     // Não é só host: cada PC calcula o crescimento localmente a cada minuto (como o jogo faz), então todos precisam rodar.
 
     private TimeManager? _subscribed;
+    private bool _loggedTonight;
 
     // Às 4:00 o jogo só dispara onUncappedMinutePass (estações usam esse e seguem funcionando); vasos usam onMinutePass.
     public override void OnUpdate()
@@ -28,7 +29,8 @@ public sealed class PlantsAlwaysGrow : Feature<PlantsAlwaysGrow>
 
     private void OnUncappedMinute()
     {
-        if (!Active || !EndOfDay.IsNow) return;
+        if (!EndOfDay.IsNow) { _loggedTonight = false; return; }
+        if (!Active) return;
         Guard("OnUncappedMinute", () =>
         {
             var containers = Object.FindObjectsOfType<GrowContainer>();
@@ -37,7 +39,8 @@ public sealed class PlantsAlwaysGrow : Feature<PlantsAlwaysGrow>
                 foreach (var c in containers)
                     if (c != null) c.OnMinPass();   // mesmo caminho de um minuto normal: cresce, gasta água, cogumelos
             });
-            Log.Debug($"minuto extra às 4h aplicado em {containers.Length} vasos/camas");
+            if (!_loggedTonight) Log.Info($"4h: plantas seguem crescendo ({containers.Length} vasos/camas)");
+            _loggedTonight = true;
         });
     }
 }
