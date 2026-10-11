@@ -12,9 +12,9 @@ public static class Ui
 
     private static Font LoadFont()
     {
-        // Unity < 2022.2 traz Arial.ttf; versões novas renomearam para LegacyRuntime.ttf.
-        try { var f = Resources.GetBuiltinResource<Font>("Arial.ttf"); if (f != null) return f; } catch { }
-        return Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        // O jogo usa Unity 2022.3, em que a fonte embutida se chama LegacyRuntime.ttf (Arial.ttf ficou só como fallback).
+        try { var f = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"); if (f != null) return f; } catch { }
+        return Resources.GetBuiltinResource<Font>("Arial.ttf");
     }
 
     public static GameObject Stretch(string name, Transform parent)
