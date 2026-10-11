@@ -32,6 +32,8 @@ public abstract class PhoneApp
     /// <summary>Letra/símbolo desenhado sobre o ícone (fonte embutida do Unity: use ASCII, ex. "$").</summary>
     public virtual string IconGlyph => "";
     protected virtual bool Horizontal => true;
+    /// <summary>Apps de dados podem ficar só como atalho dentro do app Mods (opção "Ícones separados").</summary>
+    protected virtual bool ShowIcon => true;
 
     private GameObject? _panel;
     private GameObject? _container;
@@ -95,8 +97,8 @@ public abstract class PhoneApp
         GameInput.RegisterExitListener(
             DelegateSupport.ConvertDelegate<GameInput.ExitDelegate>(new Action<ExitAction>(OnExit)), 1);
 
-        SpawnIcon(home);
-        Log.Info($"app '{IconLabel}' criado");
+        if (ShowIcon) SpawnIcon(home);
+        Log.Info($"app '{IconLabel}' criado{(ShowIcon ? "" : " (só atalho no app Mods)")}");
     }
 
     private void SpawnIcon(HomeScreen home)

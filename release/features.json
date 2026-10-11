@@ -1,5 +1,5 @@
 {
-  "version": "0.4.0",
+  "version": "0.5.0",
   "features": [
     {
       "id": "BetterStacks",
@@ -60,6 +60,24 @@
       "name": "Auto Clear Completed Deals",
       "default": true,
       "description": "Esconde conversas de clientes sem negócio pendente no app Mensagens."
+    },
+    {
+      "id": "Laundry",
+      "name": "Laundry App",
+      "default": true,
+      "description": "App Lavagem: lavar dinheiro à distância; lavagem automática opcional."
+    },
+    {
+      "id": "Bank",
+      "name": "Bank App",
+      "default": true,
+      "description": "App Banco: depositar e sacar como no ATM (limite semanal respeitado)."
+    },
+    {
+      "id": "Dealers",
+      "name": "Dealers App",
+      "default": true,
+      "description": "App Dealers: resumo de todos os dealers e coleta de dinheiro à distância."
     }
   ]
 }

@@ -20,6 +20,14 @@ public sealed class ControlPanelApp : PhoneApp
         _refreshers.Clear();
         var list = Header(container, $"ModSchedule1 v{Core.Version}", out _);
 
+        var shortcuts = Ui.Row(list, 44);
+        foreach (var app in All)
+        {
+            if (app == this) continue;
+            var a = app;
+            Ui.Button(shortcuts.transform, a.IconLabel, a.IconColor, a.Open, width: 150, height: 38);
+        }
+
         foreach (var feature in Core.Features)
         {
             var f = feature;
@@ -43,6 +51,19 @@ public sealed class ControlPanelApp : PhoneApp
                 btnBg.color = f.Faulted ? Err : f.EnabledEntry.Value ? On : Off;
             });
         }
+
+        var iconRow = Ui.Row(list);
+        Ui.Text(iconRow.transform, "Ícones separados (Banco/Lavagem/Dealers) - vale ao recarregar o save", 16);
+        var (_, iText, iBg) = Ui.Button(iconRow.transform, "", Off, () =>
+        {
+            Core.SetSeparateIcons(!Core.SeparateIcons);
+            Refresh();
+        });
+        _refreshers.Add(() =>
+        {
+            iText.text = Core.SeparateIcons ? "ATIVO" : "DESATIVADO";
+            iBg.color = Core.SeparateIcons ? On : Off;
+        });
 
         var debugRow = Ui.Row(list);
         Ui.Text(debugRow.transform, "Logs detalhados (debug)", 18);
