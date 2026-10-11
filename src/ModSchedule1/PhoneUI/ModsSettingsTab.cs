@@ -148,7 +148,7 @@ internal static class ModsSettingsTab
         b.Info(() => ConfigSync.Active
             ? "Multiplayer: configs de jogo seguem as do host (marcadas \"do host\"). Clique no nome de um mod para ver as opções."
             : "Clique no nome de um mod para ver as opções. Configs de jogo valem para todos quando você hospeda.");
-        b.Toggle(() => "Logs detalhados (debug)", () => Core.DebugLogging, Core.SetDebugLogging, () => true);
+        b.Toggle(() => "Logs de debug", () => Core.DebugLogging, Core.SetDebugLogging, () => true);
 
         foreach (var feature in Core.Features)
         {
@@ -319,6 +319,7 @@ internal static class ModsSettingsTab
         private readonly UIPanel? _uiPanel;
         private readonly TextMeshProUGUI? _font;
         private readonly float _width;
+        private static bool _dumpedToggle, _dumpedSlider;
         public int Rows;
 
         public Builder(Transform content, Transform toggleRow, Transform? sliderRow, UIPanel? uiPanel, TextMeshProUGUI? font, float width)
@@ -346,15 +347,31 @@ internal static class ModsSettingsTab
             cg.interactable = cg.blocksRaycasts = on;
         }
 
-        /// <summary>Rótulo nativo em uma linha só, encolhendo a fonte se o texto for longo.</summary>
-        private static void FitLabel(TextMeshProUGUI? t)
+        /// <summary>
+        /// Rótulo nativo termina antes do controle (o original é curto e passa por baixo do slider/botão com nomes
+        /// longos): corta a borda direita até o controle mais à esquerda e deixa quebrar linha e encolher a fonte.
+        /// </summary>
+        private static void FitLabel(TextMeshProUGUI? t, params Transform?[] controls)
         {
             if (t == null) return;
             t.richText = true;
-            t.enableWordWrapping = false;
+            t.enableWordWrapping = true;
+            t.overflowMode = TextOverflowModes.Ellipsis;
             t.fontSizeMax = t.fontSize;
-            t.fontSizeMin = Mathf.Min(12f, t.fontSize);
+            t.fontSizeMin = Mathf.Min(11f, t.fontSize);
             t.enableAutoSizing = true;
+            var rt = t.rectTransform;
+            var parent = rt.parent;
+            float X(RectTransform r, float x) => parent.InverseTransformPoint(r.TransformPoint(new Vector3(x, 0, 0))).x;
+            float left = X(rt, rt.rect.xMin), right = X(rt, rt.rect.xMax), limit = right;
+            foreach (var c in controls)
+            {
+                var crt = c != null ? c.GetComponent<RectTransform>() : null;
+                if (crt == null || crt == rt) continue;
+                float cLeft = X(crt, crt.rect.xMin);
+                if (cLeft > left + 40) limit = Mathf.Min(limit, cLeft - 10);
+            }
+            if (limit < right) rt.offsetMax -= new Vector2(right - limit, 0);
         }
 
         public GameObject? Toggle(Func<string> label, Func<bool> get, Action<bool> set, Func<bool> editable)
@@ -366,7 +383,9 @@ internal static class ModsSettingsTab
             ui.OnChanged = new UnityEvent<bool>();
             ui.OnChanged.AddListener((UnityAction<bool>)new Action<bool>(v => { set(v); Refresh(); }));
             if (_uiPanel != null && ui.selectable != null) _uiPanel.AddSelectable(ui.selectable);
-            FitLabel(ui.nameText);
+            NativeUi.DumpOnce(ref _dumpedToggle, row.transform, "linha liga/desliga (clone)", 3);
+            FitLabel(ui.nameText, ui.toggleImage != null ? ui.toggleImage.transform.parent : null,
+                ui.toggleImage != null ? ui.toggleImage.transform : null, ui.buttonText != null ? ui.buttonText.transform : null);
             Add(row, () =>
             {
                 string text = label();
@@ -420,7 +439,11 @@ internal static class ModsSettingsTab
                 if (!inSlider && name == null && (ui == null || t != ui.valueText)) name = t;
                 else if (inSlider && value == null) value = t;
             }
-            FitLabel(name);
+            // slider mais curto (começa 35% mais à direita): sobra espaço para o rótulo
+            NativeUi.DumpOnce(ref _dumpedSlider, row.transform, "linha de slider (clone)", 3);
+            var srt = slider.GetComponent<RectTransform>();
+            srt.offsetMin += new Vector2(srt.rect.width * 0.35f, 0);
+            FitLabel(name, slider.transform);
 
             slider.onValueChanged = new UnityEngine.UI.Slider.SliderEvent();
             slider.minValue = min;

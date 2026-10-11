@@ -23,20 +23,20 @@ public sealed class BetterStacks : Feature<BetterStacks>
 
     protected override void OnInit()
     {
-        void Mult(string category, int def) =>
-            _multipliers[category] = Setting($"Mult_{category}", def, $"Multiplicador: {category}", $"Pilha de itens '{category}' x N (1 = normal)");
-        Mult("Product", 2);
-        Mult("Packaging", 3);
-        Mult("Agriculture", 2);   // era "Growing" antes do 0.4.7
-        Mult("Ingredient", 10);
-        Mult("Consumable", 10);
-        Mult("Tools", 1);
-        Mult("Furniture", 1);
-        Mult("Equipment", 1);
-        Mult("Clothing", 1);
-        Mult("Lighting", 1);
-        Mult("Decoration", 1);
-        _mixCapacity = Setting("MixingStationCapacity", 2, "Mixing station: capacidade x N");
+        void Mult(string category, string label, int def) =>
+            _multipliers[category] = Setting($"Mult_{category}", def, $"Pilha x: {label}", $"Pilha de itens '{category}' x N (1 = normal)", min: 1, max: 50);
+        Mult("Product", "Produtos", 2);
+        Mult("Packaging", "Embalagens", 3);
+        Mult("Agriculture", "Agricultura", 2);   // era "Growing" antes do 0.4.7
+        Mult("Ingredient", "Ingredientes", 10);
+        Mult("Consumable", "Consumíveis", 10);
+        Mult("Tools", "Ferramentas", 1);
+        Mult("Furniture", "Móveis", 1);
+        Mult("Equipment", "Equipamentos", 1);
+        Mult("Clothing", "Roupas", 1);
+        Mult("Lighting", "Iluminação", 1);
+        Mult("Decoration", "Decoração", 1);
+        _mixCapacity = Setting("MixingStationCapacity", 2, "Mixer: capacidade x", min: 1, max: 50);
 
         Enabled.Changed += () => Apply();
         foreach (var m in _multipliers.Values) m.Changed += () => Apply();

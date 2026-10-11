@@ -22,7 +22,6 @@ public static class Ui
         public static Color Accent = new(0.3f, 0.8f, 0.4f);
         public static Color Background = new(0.08f, 0.09f, 0.11f, 1f);
         public static Sprite? BackgroundSprite;
-        public static Sprite? CardSprite;
         public static Color Card = new(1f, 1f, 1f, 0.06f);
 
         /// <summary>
@@ -41,7 +40,7 @@ public static class Ui
                 Font = title != null ? title.font : app.CashLabel.font;
                 Text = title != null ? title.color : Color.white;
                 var cardImage = card.GetComponent<Image>();
-                if (cardImage != null) { CardSprite = cardImage.sprite; Card = cardImage.color; }
+                if (cardImage != null) Card = cardImage.color;   // só a cor: o sprite nativo é feito para 283x100 e estica em oval
             }
             var bg = app.appContainer != null ? app.appContainer.GetComponentInChildren<Image>(true) : null;
             if (bg != null) { Background = bg.color; BackgroundSprite = bg.sprite; }
@@ -50,7 +49,8 @@ public static class Ui
         public static void Style(Image image, Color color)
         {
             image.color = color;
-            if (CardSprite != null) { image.sprite = CardSprite; image.type = Image.Type.Sliced; }
+            image.sprite = Rounded();
+            image.type = Image.Type.Sliced;   // cantos fixos em qualquer tamanho
         }
     }
 
@@ -122,6 +122,28 @@ public static class Ui
         v.childForceExpandWidth = true;
         v.childForceExpandHeight = false;
         return go;
+    }
+
+    private static Sprite? _rounded;
+
+    /// <summary>Retângulo branco de cantos arredondados (raio 12) com bordas 9-slice: serve para card e botão de qualquer tamanho.</summary>
+    public static Sprite Rounded()
+    {
+        if (_rounded != null) return _rounded;
+        const int n = 48, r = 12;
+        var tex = new Texture2D(n, n, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+        for (int y = 0; y < n; y++)
+            for (int x = 0; x < n; x++)
+            {
+                float px = x + 0.5f, py = y + 0.5f;
+                float d = Vector2.Distance(new Vector2(px, py), new Vector2(Mathf.Clamp(px, r, n - r), Mathf.Clamp(py, r, n - r)));
+                tex.SetPixel(x, y, new Color(1, 1, 1, Mathf.Clamp01(r - d + 0.5f)));
+            }
+        tex.Apply();
+        tex.hideFlags = HideFlags.DontUnloadUnusedAsset;
+        _rounded = Sprite.Create(tex, new Rect(0, 0, n, n), new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.FullRect, new Vector4(r, r, r, r));
+        _rounded.hideFlags = HideFlags.DontUnloadUnusedAsset;
+        return _rounded;
     }
 
     public static Sprite SolidSprite(Color color)

@@ -1,5 +1,5 @@
 {
-  "version": "0.11.0",
+  "version": "0.12.0",
   "features": [
     {
       "id": "BetterStacks",
@@ -132,6 +132,12 @@
       "name": "Acelerar o tempo",
       "default": true,
       "description": "Tecla (padrão F6) liga/desliga o tempo acelerado. Para sozinho às 4:00. Só o host."
+    },
+    {
+      "id": "CustomerMarkers",
+      "name": "Clientes em potencial",
+      "default": true,
+      "description": "Bola rosa sobre a cabeça dos NPCs que já podem virar clientes (aceitam amostra)."
     }
   ]
 }
