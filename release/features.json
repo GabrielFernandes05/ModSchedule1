@@ -1,9 +1,13 @@
 {
-  "version": "0.1.0",
+  "version": "0.2.0",
   "features": [
     { "id": "BetterStacks", "name": "Better Stacks", "default": true,
       "description": "Pilhas maiores por categoria de item; mixing station maior e mais rápida." },
     { "id": "NoMoreTrash", "name": "No More Trash", "default": true,
-      "description": "Some com o lixo gerado no mundo (configurável por tipo)." }
+      "description": "Some com o lixo gerado no mundo (configurável por tipo)." },
+    { "id": "CompassDistances", "name": "Compass Distances", "default": true,
+      "description": "Sempre mostra a distância dos marcadores na bússola." },
+    { "id": "WarehouseAlwaysOpen", "name": "Warehouse Always Open", "default": true,
+      "description": "Warehouse (Dark Market) aberto a qualquer hora; desbloqueio sem rank opcional." }
   ]
 }
