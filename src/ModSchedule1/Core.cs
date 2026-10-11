@@ -13,7 +13,7 @@ namespace ModSchedule1;
 
 public sealed class Core : MelonMod
 {
-    public const string Version = "0.2.0";
+    public const string Version = "0.3.0";
 
     /// <summary>Every feature of the megamod. Adding a mod = adding a line here (and in release/features.json).</summary>
     public static readonly List<Feature> Features = new()
@@ -22,6 +22,9 @@ public sealed class Core : MelonMod
         new NoMoreTrash(),
         new CompassDistances(),
         new WarehouseAlwaysOpen(),
+        new PlantsAlwaysGrow(),
+        new EmployeesAlwaysWork(),
+        new AbsorbentSoil(),
     };
 
     private static MelonPreferences_Entry<bool> _debug = null!;
@@ -69,6 +72,7 @@ public sealed class Core : MelonMod
 
     public override void OnUpdate()
     {
+        EndOfDay.Restore();   // rede de segurança: o relógio nunca fica preso em 3:59 entre frames
         foreach (var f in Features)
         {
             if (!f.Active) continue;

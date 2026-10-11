@@ -1,13 +1,47 @@
 {
-  "version": "0.2.0",
+  "version": "0.3.0",
   "features": [
-    { "id": "BetterStacks", "name": "Better Stacks", "default": true,
-      "description": "Pilhas maiores por categoria de item; mixing station maior e mais rápida." },
-    { "id": "NoMoreTrash", "name": "No More Trash", "default": true,
-      "description": "Some com o lixo gerado no mundo (configurável por tipo)." },
-    { "id": "CompassDistances", "name": "Compass Distances", "default": true,
-      "description": "Sempre mostra a distância dos marcadores na bússola." },
-    { "id": "WarehouseAlwaysOpen", "name": "Warehouse Always Open", "default": true,
-      "description": "Warehouse (Dark Market) aberto a qualquer hora; desbloqueio sem rank opcional." }
+    {
+      "id": "BetterStacks",
+      "name": "Better Stacks",
+      "default": true,
+      "description": "Pilhas maiores por categoria de item; mixing station maior e mais rápida."
+    },
+    {
+      "id": "NoMoreTrash",
+      "name": "No More Trash",
+      "default": true,
+      "description": "Some com o lixo gerado no mundo (configurável por tipo)."
+    },
+    {
+      "id": "CompassDistances",
+      "name": "Compass Distances",
+      "default": true,
+      "description": "Sempre mostra a distância dos marcadores na bússola."
+    },
+    {
+      "id": "WarehouseAlwaysOpen",
+      "name": "Warehouse Always Open",
+      "default": true,
+      "description": "Warehouse (Dark Market) aberto a qualquer hora; desbloqueio sem rank opcional."
+    },
+    {
+      "id": "PlantsAlwaysGrow",
+      "name": "Plants Always Grow",
+      "default": true,
+      "description": "Plantas e cogumelos continuam crescendo depois das 4h."
+    },
+    {
+      "id": "EmployeesAlwaysWork",
+      "name": "Employees Always Work",
+      "default": true,
+      "description": "Funcionários continuam trabalhando depois das 4h (só host)."
+    },
+    {
+      "id": "AbsorbentSoil",
+      "name": "Absorbent Soil",
+      "default": true,
+      "description": "Aditivos ficam no solo entre colheitas enquanto o solo tiver usos."
+    }
   ]
 }
