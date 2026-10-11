@@ -75,10 +75,35 @@ function Ask-GameDir {
     $null
 }
 
+# Normal (IL2CPP) traz GameAssembly.dll; Mono (beta "alternate") traz Managed\Assembly-CSharp.dll. Se sobrar arquivo
+# de uma troca de branch e existirem os dois, vale o mais novo (o que a Steam acabou de baixar).
 function Detect-Flavor([string]$dir) {
-    if (Test-Path (Join-Path $dir 'GameAssembly.dll')) { return 'il2cpp' }
-    if (Test-Path (Join-Path $dir 'Schedule I_Data\Managed\Assembly-CSharp.dll')) { return 'mono' }
+    if (-not $dir) { return $null }
+    $il2cpp = Get-Item (Join-Path $dir 'GameAssembly.dll') -ErrorAction SilentlyContinue
+    $mono = Get-Item (Join-Path $dir 'Schedule I_Data\Managed\Assembly-CSharp.dll') -ErrorAction SilentlyContinue
+    if ($il2cpp -and $mono) { if ($mono.LastWriteTime -gt $il2cpp.LastWriteTime) { return 'mono' } else { return 'il2cpp' } }
+    if ($il2cpp) { return 'il2cpp' }
+    if ($mono) { return 'mono' }
     $null
+}
+
+$MonoHelp = "O Schedule I está na versão Mono (beta 'alternate'). O ModSchedule1 só funciona na versão Normal.`n`n" +
+            "Na Steam: clique com o botão direito em Schedule I > Propriedades > Betas > selecione 'Nenhum'.`n" +
+            "Espere o download terminar e clique em 'Verificar de novo' no launcher."
+
+# Bloqueia o jogo se a versão não for a Normal. Chamado na sincronização e de novo ao clicar em Iniciar.
+function Test-GameVersion {
+    $detected = Detect-Flavor $State.gameDir
+    $State.flavor = 'il2cpp'   # único build publicado; Mono fica para depois
+    if ($detected -eq 'il2cpp') { return $true }
+    if ($detected -eq 'mono') {
+        Log 'BLOQUEADO: jogo na versão Mono. Troque para a versão Normal na Steam.'
+        [System.Windows.Forms.MessageBox]::Show($MonoHelp, 'ModSchedule1 - versão errada do jogo', 'OK', 'Warning') | Out-Null
+    } else {
+        Log 'BLOQUEADO: não consegui identificar a versão do jogo (GameAssembly.dll ausente).'
+        [System.Windows.Forms.MessageBox]::Show("Não encontrei os arquivos da versão Normal do jogo.`n`nNa Steam: Propriedades > Arquivos instalados > Verificar integridade.", 'ModSchedule1', 'OK', 'Warning') | Out-Null
+    }
+    $false
 }
 
 # ---------- backup ----------
@@ -244,11 +269,14 @@ $flavorLabel = New-Object System.Windows.Forms.Label
 $flavorLabel.Text = 'Versão do jogo:'; $flavorLabel.Location = '14,82'; $flavorLabel.Size = '100,20'
 $form.Controls.Add($flavorLabel)
 
-$flavorBox = New-Object System.Windows.Forms.ComboBox
-$flavorBox.DropDownStyle = 'DropDownList'; $flavorBox.Location = '116,78'; $flavorBox.Size = '260,24'
-[void]$flavorBox.Items.Add('Normal (IL2CPP)')
-[void]$flavorBox.Items.Add('Mono (branch beta alternate)')
-$form.Controls.Add($flavorBox)
+$flavorValue = New-Object System.Windows.Forms.Label
+$flavorValue.Location = '116,82'; $flavorValue.Size = '420,20'
+$flavorValue.Font = New-Object System.Drawing.Font('Segoe UI', 9, [System.Drawing.FontStyle]::Bold)
+$form.Controls.Add($flavorValue)
+
+$recheck = New-Object System.Windows.Forms.Button
+$recheck.Text = 'Verificar de novo'; $recheck.Location = '670,78'; $recheck.Size = '120,26'
+$form.Controls.Add($recheck)
 
 $list = New-Object System.Windows.Forms.ListView
 $list.View = 'Details'; $list.FullRowSelect = $true; $list.Location = '12,112'; $list.Size = '780,250'
@@ -282,7 +310,11 @@ $form.Controls.Add($folder)
 
 function Refresh-View {
     $gameLabel.Text = "Jogo: $($State.gameDir)"
-    $flavorBox.SelectedIndex = if ($State.flavor -eq 'mono') { 1 } else { 0 }
+    switch (Detect-Flavor $State.gameDir) {
+        'il2cpp' { $flavorValue.Text = 'Normal (IL2CPP) - OK'; $flavorValue.ForeColor = [System.Drawing.Color]::DarkGreen }
+        'mono'   { $flavorValue.Text = 'Mono (beta alternate) - NÃO SUPORTADA, troque para Normal'; $flavorValue.ForeColor = [System.Drawing.Color]::Firebrick }
+        default  { $flavorValue.Text = 'não identificada'; $flavorValue.ForeColor = [System.Drawing.Color]::Firebrick }
+    }
     $list.Items.Clear()
     $featuresPath = Join-Path $Cache 'features.json'
     if (-not (Test-Path $featuresPath)) { return }
@@ -308,21 +340,12 @@ function Run-Sync([bool]$cleanInstall) {
             if ($State.gameDir) { Log "Jogo encontrado pela Steam: $($State.gameDir)" }
             else { $State.gameDir = Ask-GameDir }
             if (-not $State.gameDir) { Log 'Pasta do jogo não informada.'; return }
-            $State.flavor = $null
-        }
-        $detected = Detect-Flavor $State.gameDir
-        if (-not $State.flavor) { $State.flavor = if ($detected) { $detected } else { 'il2cpp' } }
-        if ($detected -and $detected -ne $State.flavor) {
-            Log "AVISO: os arquivos do jogo são da versão '$detected', mas '$($State.flavor)' está selecionada."
         }
         Save-State
         Refresh-View
+        if (-not (Test-GameVersion)) { return }
 
         Update-Release
-        if ($State.flavor -eq 'mono') {
-            Log 'A versão Mono ainda não é suportada. Na Steam, troque para o branch padrão (Normal).'
-            return
-        }
         if ($cleanInstall -or -not (Test-Path (MelonMarker))) { Clean-Install }
         else {
             if (-not (Test-Melon)) { Install-Melon }
@@ -340,6 +363,7 @@ function Run-Sync([bool]$cleanInstall) {
 }
 
 $start.Add_Click({
+    if (-not (Test-GameVersion)) { $start.Enabled = $false; Refresh-View; return }   # trocou de branch com o launcher aberto
     Log 'Abrindo o jogo pela Steam...'
     Start-Process "steam://rungameid/$SteamAppId"
     $form.Close()
@@ -352,12 +376,9 @@ $clean.Add_Click({
 })
 $changeDir.Add_Click({
     $dir = Ask-GameDir
-    if ($dir) { $State.gameDir = $dir; $State.flavor = $null; Save-State; Run-Sync $false }
+    if ($dir) { $State.gameDir = $dir; Save-State; Run-Sync $false }
 })
-$flavorBox.Add_SelectionChangeCommitted({
-    $State.flavor = if ($flavorBox.SelectedIndex -eq 1) { 'mono' } else { 'il2cpp' }
-    Save-State; Run-Sync $false
-})
+$recheck.Add_Click({ Run-Sync $false })
 $logs.Add_Click({
     $p = Join-Path $State.gameDir 'MelonLoader\Latest.log'
     if (Test-Path $p) { Start-Process notepad.exe $p } else { Log 'Ainda não há log do jogo (abra o jogo uma vez).' }

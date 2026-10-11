@@ -1,9 +1,12 @@
+using HarmonyLib;
+using Il2CppScheduleOne.UI;
 using Il2CppScheduleOne.UI.Compass;
 using MelonLoader;
+using UnityEngine;
 
 namespace ModSchedule1.Features;
 
-/// <summary>Mostra a distância de todos os marcadores na bússola, não só dos que estão perto.</summary>
+/// <summary>Mostra a distância de todos os marcadores na bússola, não só dos que estão a até 50 m.</summary>
 public sealed class CompassDistances : Feature<CompassDistances>
 {
     public override string Id => "CompassDistances";
@@ -11,31 +14,30 @@ public sealed class CompassDistances : Feature<CompassDistances>
     public override string Description => "Sempre mostra a distância dos marcadores na bússola.";
 
     private MelonPreferences_Entry<float> _range = null!;
-    private float _original = -1;   // valor do jogo, para restaurar ao desativar
 
     protected override void OnInit()
     {
         _range = Setting("MaxDistance", 100000f, "Distância máxima exibida (m)", "Marcadores até essa distância mostram o rótulo");
-        EnabledEntry.OnEntryValueChanged.Subscribe((_, _) => Apply());
-        _range.OnEntryValueChanged.Subscribe((_, _) => Apply());
     }
 
-    public override void OnSceneLoaded(string scene)
+    // UpdateElement escreve o rótulo só se distância <= 50 (DISTANCE_LABEL_THRESHOLD é const, embutido no código
+    // nativo: gravar nele derrubava o jogo na v0.3.0). Aqui completamos o rótulo que o jogo deixou vazio.
+    [HarmonyPatch(typeof(CompassManager), nameof(CompassManager.UpdateElement))]
+    private static class UpdateElementPatch
     {
-        if (scene == "Main") Apply();
-    }
-
-    // CompassManager só esconde o rótulo acima de DISTANCE_LABEL_THRESHOLD (campo estático, não const).
-    private void Apply()
-    {
-        try
+        private static void Postfix(CompassManager __instance, CompassManager.Element element)
         {
-            float current = CompassManager.DISTANCE_LABEL_THRESHOLD;
-            if (_original < 0 && current > 0 && current < _range.Value) _original = current;
-            float target = Active ? _range.Value : (_original > 0 ? _original : current);
-            CompassManager.DISTANCE_LABEL_THRESHOLD = target;
-            Log.Debug($"DISTANCE_LABEL_THRESHOLD {current} -> {target} (original {_original})");
+            if (!I.Active || element == null || !element.Visible) return;
+            try
+            {
+                var target = element.TargetTransform;
+                var cam = __instance.cam;
+                if (target == null || cam == null) return;
+                float dist = Vector3.Distance(cam.position, target.position);
+                if (dist <= 50f || dist > I._range.Value) return;
+                element.DistanceLabel.text = UnitsUtility.FormatShortDistance(dist, UnitsUtility.ERoundingType.Up);
+            }
+            catch (System.Exception e) { I.Fault("UpdateElement", e); }
         }
-        catch (System.Exception e) { Fault("Apply", e); }
     }
 }
