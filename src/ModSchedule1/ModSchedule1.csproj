@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <AssemblyName>ModSchedule1</AssemblyName>
+    <RootNamespace>ModSchedule1</RootNamespace>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <!-- Pasta do jogo (ou cópia dela) com MelonLoader/net6 e MelonLoader/Il2CppAssemblies gerados.
+         Padrão: lib/game na raiz do repo (fora do git). Ex.: dotnet build -p:GameDir="D:\Steam\steamapps\common\Schedule I" -->
+    <GameDir Condition="'$(GameDir)' == ''">$(MSBuildThisFileDirectory)../../lib/game</GameDir>
+    <ReleaseDir>$(MSBuildThisFileDirectory)../../release/il2cpp</ReleaseDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="$(GameDir)/MelonLoader/net6/MelonLoader.dll" Private="false" />
+    <Reference Include="$(GameDir)/MelonLoader/net6/0Harmony.dll" Private="false" />
+    <Reference Include="$(GameDir)/MelonLoader/net6/Il2CppInterop.Runtime.dll" Private="false" />
+    <Reference Include="$(GameDir)/MelonLoader/net6/Il2CppInterop.Common.dll" Private="false" />
+    <!-- ponytail: referencia todos os assemblies gerados; o compilador só usa os que o código toca -->
+    <Reference Include="$(GameDir)/MelonLoader/Il2CppAssemblies/*.dll" Private="false" />
+  </ItemGroup>
+
+  <Target Name="CopyToRelease" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(ReleaseDir)" />
+    <Message Importance="high" Text="ModSchedule1.dll -> $(ReleaseDir)" />
+  </Target>
+
+</Project>

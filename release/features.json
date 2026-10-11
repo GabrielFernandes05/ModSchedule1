@@ -1,0 +1,9 @@
+{
+  "version": "0.1.0",
+  "features": [
+    { "id": "BetterStacks", "name": "Better Stacks", "default": true,
+      "description": "Pilhas maiores por categoria de item; mixing station maior e mais rápida." },
+    { "id": "NoMoreTrash", "name": "No More Trash", "default": true,
+      "description": "Some com o lixo gerado no mundo (configurável por tipo)." }
+  ]
+}
