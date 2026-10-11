@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using HarmonyLib;
-using Il2CppScheduleOne.Core.Items.Framework;   // EItemCategory (mudou de ItemFramework em versões recentes)
-using Il2CppScheduleOne.ItemFramework;
+using Il2CppScheduleOne.Core.Items.Framework;   // EItemCategory e BaseItemInstance (Il2CppScheduleOne.Core.dll)
 using Il2CppScheduleOne.ObjectScripts;
 using MelonLoader;
 
@@ -26,7 +25,7 @@ public sealed class BetterStacks : Feature<BetterStacks>
             _multipliers[category] = Setting($"Mult_{category}", def, $"Multiplicador: {category}", $"Pilha de itens '{category}' x N (1 = normal)");
         Mult("Product", 2);
         Mult("Packaging", 3);
-        Mult("Growing", 2);
+        Mult("Agriculture", 2);   // era "Growing" antes do 0.4.7
         Mult("Ingredient", 10);
         Mult("Consumable", 10);
         Mult("Tools", 1);
@@ -49,10 +48,11 @@ public sealed class BetterStacks : Feature<BetterStacks>
         return e != null && e.Value > 0 ? e.Value : 1;
     }
 
-    [HarmonyPatch(typeof(ItemInstance), nameof(ItemInstance.StackLimit), MethodType.Getter)]
+    // StackLimit é declarado em BaseItemInstance (nenhuma subclasse sobrescreve no 0.4.7).
+    [HarmonyPatch(typeof(BaseItemInstance), nameof(BaseItemInstance.StackLimit), MethodType.Getter)]
     private static class StackLimitPatch
     {
-        private static void Postfix(ItemInstance __instance, ref int __result)
+        private static void Postfix(BaseItemInstance __instance, ref int __result)
         {
             if (!I.Active) return;
             try

@@ -1,4 +1,4 @@
-using System;
+using MelonLoader.Logging;
 using MelonLoader;
 
 namespace ModSchedule1;
@@ -8,7 +8,7 @@ public sealed class Log
 {
     private readonly MelonLogger.Instance _logger;
 
-    public Log(string source) => _logger = new MelonLogger.Instance("ModSchedule1:" + source, ConsoleColor.Cyan);
+    public Log(string source) => _logger = new MelonLogger.Instance("ModSchedule1:" + source, ColorARGB.Cyan);
 
     public void Info(string msg) => _logger.Msg(msg);
     public void Warn(string msg) => _logger.Warning(msg);
@@ -16,6 +16,6 @@ public sealed class Log
 
     public void Debug(string msg)
     {
-        if (Core.DebugLogging) _logger.Msg(ConsoleColor.DarkGray, "[debug] " + msg);
+        if (Core.DebugLogging) _logger.Msg(ColorARGB.Gray, "[debug] " + msg);
     }
 }

@@ -1,6 +1,8 @@
+using System.Collections.Generic;
 using HarmonyLib;
 using Il2CppScheduleOne.Trash;
 using MelonLoader;
+using UnityEngine;
 
 namespace ModSchedule1.Features;
 
@@ -13,33 +15,50 @@ public sealed class NoMoreTrash : Feature<NoMoreTrash>
     public override bool HostOnly => true;   // o lixo é objeto de rede: só o host destrói, os clientes recebem o despawn
 
     private MelonPreferences_Entry<string> _keep = null!;
+    private MelonPreferences_Entry<bool> _keepBags = null!;
+    private readonly List<TrashItem> _pending = new();
 
     protected override void OnInit()
     {
         _keep = Setting("KeepIds", "", "IDs de lixo para manter",
-            "Lista separada por vírgula (ex.: trashbag,glassbottle). O ID de cada lixo aparece no log com DebugLogging ligado.");
+            "Lista separada por vírgula (ex.: glassbottle,cigarette). O ID de cada lixo aparece no log com DebugLogging ligado.");
+        _keepBags = Setting("KeepTrashBags", true, "Manter sacos de lixo", "Não remove os sacos de lixo que você ou os funcionários fecham");
     }
 
     private bool ShouldKeep(string id)
     {
+        if (_keepBags.Value && id.Contains("trashbag")) return true;
         foreach (var k in _keep.Value.Split(','))
             if (k.Trim().Equals(id, System.StringComparison.OrdinalIgnoreCase)) return true;
         return false;
     }
 
-    [HarmonyPatch(typeof(TrashItem), "Start")]
-    private static class TrashStartPatch
+    // Destrói no frame seguinte: quem criou o lixo ainda mexe nele (velocidade, GUID) logo após o retorno.
+    public override void OnUpdate()
     {
-        private static void Postfix(TrashItem __instance)
+        if (_pending.Count == 0) return;
+        foreach (var trash in _pending)
         {
-            I.Guard("TrashItem.Start", () =>
+            if (trash == null) continue;   // já destruído/coletado
+            Log.Debug($"removido: {trash.ID}");
+            trash.DestroyTrash();
+        }
+        _pending.Clear();
+    }
+
+    public override void OnSceneLoaded(string scene) => _pending.Clear();
+
+    // CreateTrashItemInternal roda para todo lixo criado (NPC, jogador, gerador, save carregado). TrashItem.Start não existe mais no 0.4.7.
+    [HarmonyPatch(typeof(TrashManager), nameof(TrashManager.CreateTrashItemInternal))]
+    private static class CreateTrashPatch
+    {
+        private static void Postfix(TrashItem __result)
+        {
+            I.Guard("CreateTrashItemInternal", () =>
             {
-                // Lixo "solto" fica num container *_Temp; lixo dentro de lixeiras/sacos não é tocado.
-                var parent = __instance.transform.parent;
-                if (parent == null || !parent.gameObject.name.Contains("_Temp")) return;
-                if (I.ShouldKeep(__instance.ID)) { I.Log.Debug($"mantido: {__instance.ID}"); return; }
-                I.Log.Debug($"removido: {__instance.ID}");
-                __instance.DestroyTrash();
+                if (__result == null) return;
+                if (I.ShouldKeep(__result.ID)) { I.Log.Debug($"mantido: {__result.ID}"); return; }
+                I._pending.Add(__result);
             });
         }
     }
