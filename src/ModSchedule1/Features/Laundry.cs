@@ -16,7 +16,7 @@ public sealed class Laundry : Feature<Laundry>
 {
     public override string Id => "Laundry";
     public override string Name => "Laundry App";
-    public override string Description => "App no celular para lavar dinheiro à distância (e lavagem automática opcional).";
+    public override string Description => "Lavar dinheiro pelo app Finanças do celular (e lavagem automática opcional).";
     public override bool Shared => false;   // pessoal: cada jogador usa a própria config
     // Cada jogador lava o próprio dinheiro em mãos: roda em todos os PCs, sem ser só host.
 
@@ -31,9 +31,8 @@ public sealed class Laundry : Feature<Laundry>
     protected override void OnInit()
     {
         _auto = Setting("AutoLaunder", false, "Lavagem automática", "Lava o máximo possível em todos os negócios periodicamente");
-        _autoInterval = Setting("AutoLaunderMinutes", 60, "Intervalo da automática (min de jogo)");
-        _keepCash = Setting("KeepCash", 500, "Manter em mãos ($)", "A lavagem (manual 'máximo' e automática) não usa esse valor");
-        PhoneApp.All.Add(new LaundryApp());
+        _autoInterval = Setting("AutoLaunderMinutes", 60, "Intervalo da automática (min de jogo)", min: 10, max: 720);
+        _keepCash = Setting("KeepCash", 500, "Manter em mãos ($)", "A lavagem (manual 'máximo' e automática) não usa esse valor", min: 0, max: 20000);
     }
 
     public static float Cash => MoneyManager.Instance.cashBalance;
@@ -82,83 +81,6 @@ public sealed class Laundry : Feature<Laundry>
         {
             int amount = MaxFor(b, keepReserve: true);
             if (amount >= MinAmount) Launder(b, amount);
-        }
-    }
-}
-
-public sealed class LaundryApp : PhoneApp
-{
-    public override string AppName => "ModSchedule1Laundry";
-    public override string IconLabel => "Lavagem";
-    protected override bool ShowIcon => Core.SeparateIcons;
-    public override string IconGlyph => "L";
-    public override Color IconColor => new(0.2f, 0.45f, 0.75f);
-
-    private Transform _list = null!;
-    private Text _summary = null!;
-    private readonly List<(Business Business, Text Info, Text Ops, Text MaxLabel)> _rows = new();
-    private int _builtFor = -1;
-
-    protected override void BuildUI(GameObject container)
-    {
-        _list = Header(container, "Lavagem de dinheiro", out _);
-        _builtFor = -1;
-    }
-
-    protected override void OnOpened() => OnTick();
-
-    protected override void OnTick()
-    {
-        if (!Laundry.I.Active) { Rebuild(disabled: true); return; }
-        var owned = Business.OwnedBusinesses;
-        if (owned.Count != _builtFor) Rebuild(disabled: false);
-        _summary.text = $"Dinheiro em mãos: <b>{Ui.Money(Laundry.Cash)}</b>";
-        foreach (var (b, info, ops, maxLabel) in _rows)
-        {
-            if (b == null) continue;
-            float total = b.currentLaunderTotal;
-            info.text = $"<b>{b.PropertyName}</b>   lavando {Ui.Money(total)} de {Ui.Money(b.LaunderCapacity)}";
-            var lines = new List<string>();
-            foreach (var op in b.LaunderingOperations)
-            {
-                int left = Math.Max(0, op.completionTime_Minutes - op.minutesSinceStarted);
-                lines.Add($"  {Ui.Money(op.amount)}  -  falta {left / 60}h{left % 60:00}");
-            }
-            ops.text = lines.Count > 0 ? string.Join("\n", lines) : "  nenhuma operação em andamento";
-            int max = Laundry.I.MaxFor(b, keepReserve: true);
-            maxLabel.text = Laundry.I.OnCooldown(b) ? "enviando..." : max >= 10 ? $"Lavar {Ui.Money(max)}" : "sem espaço/dinheiro";
-        }
-    }
-
-    private void Rebuild(bool disabled)
-    {
-        Ui.Clear(_list);
-        _rows.Clear();
-        _summary = Ui.Text(_list, "", 18);
-        _summary.supportRichText = true;
-        if (disabled)
-        {
-            _summary.text = "Ative o 'Laundry App' no app Mods.";
-            _builtFor = -1;
-            return;
-        }
-        var owned = Business.OwnedBusinesses;
-        _builtFor = owned.Count;
-        if (owned.Count == 0) Ui.Text(_list, "Você ainda não tem negócios para lavar dinheiro.", 16);
-        foreach (var business in owned)
-        {
-            var b = business;
-            var card = Ui.Card(_list);
-            var info = Ui.Text(card.transform, "", 18);
-            info.supportRichText = true;
-            var ops = Ui.Text(card.transform, "", 15, minHeight: 20);
-            ops.color = new Color(0.8f, 0.8f, 0.8f);
-            var row = Ui.Row(card.transform, 40);
-            var (_, maxLabel, _) = Ui.Button(row.transform, "", new Color(0.2f, 0.45f, 0.75f),
-                () => Laundry.I.Guard("lavar máximo", () => Laundry.I.Launder(b, Laundry.I.MaxFor(b, keepReserve: true))), width: 240, height: 34);
-            Ui.Button(row.transform, "Lavar metade", new Color(0.35f, 0.35f, 0.38f),
-                () => Laundry.I.Guard("lavar metade", () => Laundry.I.Launder(b, Laundry.I.MaxFor(b, keepReserve: true) / 2)), width: 160, height: 34);
-            _rows.Add((b, info, ops, maxLabel));
         }
     }
 }

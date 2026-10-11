@@ -18,7 +18,7 @@ public sealed class CompassDistances : Feature<CompassDistances>
 
     protected override void OnInit()
     {
-        _range = Setting("MaxDistance", 100000f, "Distância máxima exibida (m)", "Marcadores até essa distância mostram o rótulo");
+        _range = Setting("MaxDistance", 100000f, "Distância máxima exibida (m)", "Marcadores até essa distância mostram o rótulo", min: 50, max: 100000);
     }
 
     // UpdateElement escreve o rótulo só se distância <= 50 (DISTANCE_LABEL_THRESHOLD é const, embutido no código

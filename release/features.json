@@ -1,5 +1,5 @@
 {
-  "version": "0.7.0",
+  "version": "0.8.0",
   "features": [
     {
       "id": "BetterStacks",
@@ -63,39 +63,45 @@
     },
     {
       "id": "Laundry",
-      "name": "Laundry App",
+      "name": "Laundry",
       "default": true,
-      "description": "App Lavagem: lavar dinheiro à distância; lavagem automática opcional."
+      "description": "Lavar dinheiro pelo app Finanças; lavagem automática opcional."
     },
     {
       "id": "Bank",
-      "name": "Bank App",
+      "name": "Bank",
       "default": true,
-      "description": "App Banco: depositar e sacar como no ATM (limite semanal respeitado)."
+      "description": "Depositar e sacar pelo app Finanças do celular (limite semanal respeitado)."
     },
     {
       "id": "Dealers",
-      "name": "Dealers App",
+      "name": "Dealers+",
       "default": true,
-      "description": "App Dealers: resumo de todos os dealers e coleta de dinheiro à distância."
+      "description": "Coletar dinheiro dos dealers no app de dealers do próprio jogo."
     },
     {
       "id": "Recipes",
       "name": "Recipe List",
       "default": true,
-      "description": "App Receitas: receita completa de cada produto, preços e efeitos."
+      "description": "Receita completa de cada mistura no app de produtos do jogo."
     },
     {
       "id": "Deliveries",
       "name": "DeliveryApp++",
       "default": true,
-      "description": "App Entregas: favoritos, pedidos recorrentes e entregas em andamento."
+      "description": "Favoritos e pedidos recorrentes no app Delivery do jogo."
     },
     {
       "id": "EmployeeFacilities",
       "name": "Employee Facilities",
       "default": true,
       "description": "Vários funcionários podem dividir a mesma cama/armário."
+    },
+    {
+      "id": "FastActions",
+      "name": "Ações rápidas",
+      "default": true,
+      "description": "Pula animações de terra, plantio, aditivos, rega, colheita e cogumelos."
     }
   ]
 }

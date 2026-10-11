@@ -24,25 +24,30 @@ A primeira abertura do jogo demora alguns minutos, porque o MelonLoader gera os 
 
 ## Mods
 
-| Mod | O que faz |
-|---|---|
-| Better Stacks | Pilhas maiores por categoria; mixing station com mais capacidade |
-| No More Trash | Remove o lixo gerado no mundo (só host) |
-| Compass Distances | Distância de todos os marcadores na bússola |
-| Warehouse Always Open | Warehouse aberto 24h (desbloqueio sem rank opcional) |
-| Plants Always Grow | Plantas e cogumelos crescem depois das 4h |
-| Employees Always Work | Funcionários trabalham depois das 4h (só host) |
-| Absorbent Soil | Aditivos ficam no solo entre colheitas |
-| Station Speed | Estações mais rápidas (multiplicador por tipo) |
-| Better Employees | Trabalho/passo mais rápidos, salário ajustável, mais estações por funcionário |
-| Auto Clear Completed Deals | Esconde conversas de clientes sem negócio pendente |
-| Employee Facilities | Funcionários dividem cama/armário |
-| Apps: Mods, Banco, Lavagem, Dealers, Receitas, Entregas | No celular do jogo |
+| Mod | O que faz | Config |
+|---|---|---|
+| Better Stacks | Pilhas maiores por categoria; mixing station com mais capacidade | do host |
+| No More Trash | Remove o lixo gerado no mundo (só host) | do host |
+| Warehouse Always Open | Warehouse aberto 24h (desbloqueio sem rank opcional) | do host |
+| Plants Always Grow | Plantas e cogumelos crescem depois das 4h | do host |
+| Employees Always Work | Funcionários trabalham depois das 4h (só host) | do host |
+| Absorbent Soil | Aditivos ficam no solo entre colheitas | do host |
+| Station Speed | Estações mais rápidas (multiplicador por tipo) | do host |
+| Better Employees | Trabalho/passo mais rápidos, salário ajustável, mais estações por funcionário | do host |
+| Employee Facilities | Funcionários dividem cama/armário | do host |
+| Ações rápidas | Pula as animações de terra, plantio, aditivos, rega, colheita e cogumelos | pessoal |
+| Compass Distances | Distância de todos os marcadores na bússola | pessoal |
+| Auto Clear Completed Deals | Esconde conversas de clientes sem negócio pendente | pessoal |
+| Dealers+ | Coletar dinheiro no app de dealers do jogo | pessoal |
+| Recipe List | Receita completa no app de produtos do jogo | pessoal |
+| DeliveryApp++ | Favoritos e pedidos recorrentes no app Delivery do jogo | pessoal |
+| Bank + Laundry | App **Finanças** no celular: banco, lavagem e transações | pessoal |
 
-Próximos (precisam de assets novos, a partir da 0.8): More Guns, More Clothing, Minimap, Robbery.
+**Configurações:** menu do jogo (principal ou pausa) → **Configurações → aba Mods**. Tudo fica salvo em `UserData/ModSchedule1.cfg`.
 
-**Config:** cada mod tem "Ajustes" no app Mods do celular; tudo fica em `UserData/ModSchedule1.cfg`.
-No multiplayer, Better Stacks e Station Speed precisam da mesma config em todos os PCs.
+**Multiplayer:** as configs marcadas "do host" são enviadas pelo host para todos (via dados do lobby da Steam) e aparecem travadas para os outros jogadores durante a sessão; o cfg de cada um não é alterado. As "pessoais" cada um ajusta a seu gosto.
+
+Próximos (precisam de assets novos): More Guns, More Clothing, Minimap, Robbery.
 
 ## Desenvolvimento
 

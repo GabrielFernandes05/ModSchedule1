@@ -12,6 +12,8 @@ public interface IPref
     bool Shared { get; }                   // config de jogo: o host manda nos clientes
     bool Overridden { get; }               // valor vindo do host nesta sessão
     object BoxedValue { get; }
+    float Min { get; }                     // faixa do slider no menu (só int/float)
+    float Max { get; }
     string Serialize();
     void SetOverride(string raw);
     void ClearOverride();
@@ -29,16 +31,23 @@ public sealed class Pref<T> : IPref
     public string Key { get; }
     public bool Shared { get; }
     public bool Overridden { get; private set; }
+    public float Min { get; }
+    public float Max { get; }
     private T _override = default!;
 
     /// <summary>Disparado quando o valor efetivo muda (edição local sem override, ou override do host).</summary>
     public event Action? Changed;
 
-    public Pref(MelonPreferences_Entry<T> entry, string featureId, bool shared)
+    public Pref(MelonPreferences_Entry<T> entry, string featureId, bool shared, float min = float.NaN, float max = float.NaN)
     {
         Entry = entry;
         Key = featureId + "." + entry.Identifier;
         Shared = shared;
+        // ponytail: faixa padrão derivada do valor padrão; quem precisa de outra passa min/max no Setting()
+        float def = entry.DefaultValue is IConvertible c && typeof(T) != typeof(bool) && typeof(T) != typeof(string)
+            ? Convert.ToSingle(c, CultureInfo.InvariantCulture) : 0f;
+        Min = float.IsNaN(min) ? (typeof(T) == typeof(int) && def >= 1 ? 1 : 0) : min;
+        Max = float.IsNaN(max) ? Math.Max(typeof(T) == typeof(int) ? 10 : 5, def * 4) : max;
         entry.OnEntryValueChanged.Subscribe((_, _) => { if (!Overridden) Changed?.Invoke(); });
     }
 

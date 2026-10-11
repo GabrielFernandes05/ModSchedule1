@@ -13,7 +13,7 @@ namespace ModSchedule1;
 
 public sealed class Core : MelonMod
 {
-    public const string Version = "0.7.0";
+    public const string Version = "0.8.0";
 
     /// <summary>Every feature of the megamod. Adding a mod = adding a line here (and in release/features.json).</summary>
     public static readonly List<Feature> Features = new()
@@ -34,19 +34,13 @@ public sealed class Core : MelonMod
         new Recipes(),
         new Deliveries(),
         new EmployeeFacilities(),
+        new FastActions(),
     };
 
     private static MelonPreferences_Entry<bool> _debug = null!;
-    private static MelonPreferences_Entry<bool> _separateIcons = null!;
-    public static bool SeparateIcons => _separateIcons?.Value ?? true;
+
     public static bool DebugLogging => _debug?.Value ?? true;
     public static Log Log { get; } = new("Core");
-
-    public static void SetSeparateIcons(bool on)
-    {
-        _separateIcons.Value = on;
-        MelonPreferences.Save();
-    }
 
     public static void SetDebugLogging(bool on)
     {
@@ -59,8 +53,7 @@ public sealed class Core : MelonMod
         var core = MelonPreferences.CreateCategory("ModSchedule1_Core", "ModSchedule1");
         core.SetFilePath(Feature.ConfigFile, autoload: true, printmsg: false);
         _debug = core.CreateEntry("DebugLogging", true, "Logs detalhados", "Escreve logs [debug] no MelonLoader/Latest.log");
-        _separateIcons = core.CreateEntry("SeparateIcons", true, "Ícones separados no celular",
-            "Banco, Lavagem e Dealers com ícone próprio. Desligue se a tela inicial lotar: ficam como atalhos no app Mods (vale ao recarregar o save)");
+
 
         Log.Info($"ModSchedule1 v{Version} iniciando ({Features.Count} features, debug={DebugLogging})");
         foreach (var f in Features)
@@ -71,6 +64,8 @@ public sealed class Core : MelonMod
         try
         {
             HarmonyInstance.CreateClassProcessor(typeof(PhoneApp.HomeScreenStartPatch)).Patch();
+            HarmonyInstance.CreateClassProcessor(typeof(ModsSettingsTab.AwakePatch)).Patch();
+            HarmonyInstance.CreateClassProcessor(typeof(ModsSettingsTab.ShowPatch)).Patch();
             Log.Debug($"apps de celular registrados: {PhoneApp.All.Count}");
         }
         catch (Exception e) { Log.Error($"apps de celular desativados, patch da HomeScreen falhou: {e}"); }
@@ -108,6 +103,7 @@ public sealed class Core : MelonMod
     {
         EndOfDay.Restore();   // rede de segurança: o relógio nunca fica preso em 3:59 entre frames
         PhoneApp.TickOpenApps();
+        ConfigSync.Tick();
         foreach (var f in Features)
         {
             if (!f.Active) continue;

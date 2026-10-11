@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using HarmonyLib;
 using Il2CppScheduleOne.Economy;
+using Il2CppScheduleOne.UI.Phone.Messages;
 using ModSchedule1.PhoneUI;
 using UnityEngine;
 using UnityEngine.UI;
@@ -8,21 +10,20 @@ using UnityEngine.UI;
 namespace ModSchedule1.Features;
 
 /// <summary>
-/// App "Dealers": todos os dealers recrutados numa tela (dinheiro, clientes, estoque) e coletar o dinheiro à distância.
-/// O app nativo de dealers mostra um por vez e não coleta; este complementa.
+/// Coletar o dinheiro dos dealers à distância, dentro do app nativo de dealers do celular: botão "Coletar $X" ao lado
+/// do dinheiro do dealer exibido e "Coletar todos" no topo. Mesma ação do diálogo do jogo (Dealer.CollectCash).
 /// </summary>
 public sealed class Dealers : Feature<Dealers>
 {
     public override string Id => "Dealers";
-    public override string Name => "Dealers App";
-    public override string Description => "Resumo de todos os dealers e coleta de dinheiro à distância.";
+    public override string Name => "Dealers+";
+    public override string Description => "Coletar dinheiro dos dealers pelo app de dealers do celular.";
     public override bool Shared => false;   // pessoal: cada jogador usa a própria config
-    // Coletar = mesma ação do diálogo do jogo (dinheiro vai pra quem clicou, SetCash(0) via RPC): vale para todos.
 
     // Cash é SyncVar: depois de coletar, o valor antigo ainda aparece até o servidor responder.
     private readonly Dictionary<IntPtr, float> _collectedAt = new();
-
-    protected override void OnInit() => PhoneApp.All.Add(new DealersApp());
+    private Button? _collect, _collectAll;
+    private bool _dumped;
 
     public static IEnumerable<Dealer> Recruited()
     {
@@ -42,87 +43,41 @@ public sealed class Dealers : Feature<Dealers>
         return cash;
     }
 
-    public float CollectAll()
-    {
-        float total = 0;
-        foreach (var d in Recruited()) total += Collect(d);
-        return total;
-    }
-
     public override void OnSceneLoaded(string scene) => _collectedAt.Clear();
-}
 
-public sealed class DealersApp : PhoneApp
-{
-    public override string AppName => "ModSchedule1Dealers";
-    public override string IconLabel => "Dealers";
-    protected override bool ShowIcon => Core.SeparateIcons;
-    public override string IconGlyph => "D";
-    public override Color IconColor => new(0.6f, 0.35f, 0.15f);
-
-    private Transform _list = null!;
-    private Text _summary = null!;
-    private readonly List<(Dealer Dealer, Text Info, Text Collect)> _rows = new();
-    private int _builtFor = -1;
-
-    protected override void BuildUI(GameObject container)
+    private void Refresh(DealerManagementApp app)
     {
-        _list = Header(container, "Dealers", out _);
-        _builtFor = -1;
-    }
+        if (_collect == null || _collectAll == null)
+        {
+            NativeUi.DumpOnce(ref _dumped, app.CashLabel.transform.parent, "DealerManagementApp (CashLabel.parent)");
+            // Clona o botão de texto nativo do app (Assign customer) para ficar com a mesma cara.
+            _collect = NativeUi.CloneButton(app.AssignCustomerButton, app.CashLabel.transform, "MS1_Collect", () =>
+                Guard("coletar", () => { var d = app.SelectedDealer; if (d != null) Collect(d); Refresh(app); }));
+            _collectAll = NativeUi.CloneButton(app.AssignCustomerButton, app.Content, "MS1_CollectAll", () =>
+                Guard("coletar todos", () => { foreach (var d in Recruited()) Collect(d); Refresh(app); }));
+            NativeUi.Place(_collectAll, new Vector2(1, 1), new Vector2(1, 1), new Vector2(-12, -8), new Vector2(230, 36));
+        }
 
-    protected override void OnOpened() => OnTick();
-
-    protected override void OnTick()
-    {
-        if (!Dealers.I.Active) { Rebuild(disabled: true); return; }
-        int count = 0;
-        foreach (var _ in Dealers.Recruited()) count++;
-        if (count != _builtFor) Rebuild(disabled: false);
-
+        var dealer = app.SelectedDealer;
+        _collect.gameObject.SetActive(Active && dealer != null);
+        _collectAll.gameObject.SetActive(Active);
+        if (dealer != null)
+        {
+            // logo à direita do texto do dinheiro (a largura muda com o valor)
+            NativeUi.Place(_collect, new Vector2(0, 0.5f), new Vector2(0, 0.5f),
+                new Vector2(app.CashLabel.preferredWidth + 12, 0), new Vector2(170, 32));
+            NativeUi.SetText(_collect, Pending(dealer) ? "coletando..." : dealer.Cash > 0 ? $"Coletar {Ui.Money(dealer.Cash)}" : "sem dinheiro");
+            _collect.interactable = dealer.Cash > 0 && !Pending(dealer);
+        }
         float total = 0;
-        foreach (var (d, info, collect) in _rows)
-        {
-            if (d == null) continue;
-            total += d.Cash;
-            string state = !d.IsConscious ? "  <color=#e66>inconsciente</color>" : "";
-            info.text = $"<b>{d.FullName}</b>  ({d.Region}){state}\n" +
-                        $"Dinheiro: <b>{Ui.Money(d.Cash)}</b>   Clientes: {d.AssignedCustomers.Count}/10   " +
-                        $"Itens: {d.GetTotalInventoryItemCount()}   Corte: {d.DealerData.SalesCutPercentage:P0}";
-            collect.text = Dealers.I.Pending(d) ? "coletando..." : d.Cash > 0 ? $"Coletar {Ui.Money(d.Cash)}" : "sem dinheiro";
-        }
-        _summary.text = $"{_rows.Count} dealer(s) recrutado(s)   Total com eles: <b>{Ui.Money(total)}</b>";
+        foreach (var d in Recruited()) if (!Pending(d)) total += d.Cash;
+        NativeUi.SetText(_collectAll, total > 0 ? $"Coletar todos ({Ui.Money(total)})" : "Nada para coletar");
+        _collectAll.interactable = total > 0;
     }
 
-    private void Rebuild(bool disabled)
+    [HarmonyPatch(typeof(DealerManagementApp), nameof(DealerManagementApp.SetDisplayedDealer))]
+    private static class SetDisplayedDealerPatch
     {
-        Ui.Clear(_list);
-        _rows.Clear();
-        var top = Ui.Row(_list, 44);
-        _summary = Ui.Text(top.transform, "", 18);
-        _summary.supportRichText = true;
-        if (disabled)
-        {
-            _summary.text = "Ative o 'Dealers App' no app Mods.";
-            _builtFor = -1;
-            return;
-        }
-        Ui.Button(top.transform, "Coletar todos", new Color(0.6f, 0.35f, 0.15f),
-            () => Dealers.I.Guard("coletar todos", () => Dealers.I.CollectAll()), width: 180, height: 36);
-
-        _builtFor = 0;
-        foreach (var dealer in Dealers.Recruited())
-        {
-            var d = dealer;
-            _builtFor++;
-            var card = Ui.Card(_list);
-            var row = Ui.Row(card.transform, 56);
-            var info = Ui.Text(row.transform, "", 16, minHeight: 50);
-            info.supportRichText = true;
-            var (_, collect, _) = Ui.Button(row.transform, "", new Color(0.6f, 0.35f, 0.15f),
-                () => Dealers.I.Guard("coletar", () => Dealers.I.Collect(d)), width: 200, height: 40);
-            _rows.Add((d, info, collect));
-        }
-        if (_builtFor == 0) Ui.Text(_list, "Nenhum dealer recrutado ainda.", 16);
+        private static void Postfix(DealerManagementApp __instance) => I.Guard("DealerManagementApp", () => I.Refresh(__instance));
     }
 }

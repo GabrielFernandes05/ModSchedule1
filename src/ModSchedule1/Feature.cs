@@ -56,9 +56,10 @@ public abstract class Feature
     }
 
     /// <param name="shared">null = segue <see cref="Shared"/> da feature.</param>
-    protected Pref<T> Setting<T>(string id, T defaultValue, string name, string description = "", bool? shared = null)
+    protected Pref<T> Setting<T>(string id, T defaultValue, string name, string description = "", bool? shared = null,
+        float min = float.NaN, float max = float.NaN)
     {
-        var pref = new Pref<T>(Category.CreateEntry(id, defaultValue, name, description), Id, shared ?? Shared);
+        var pref = new Pref<T>(Category.CreateEntry(id, defaultValue, name, description), Id, shared ?? Shared, min, max);
         Prefs.Add(pref);
         return pref;
     }

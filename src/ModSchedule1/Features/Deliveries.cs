@@ -7,7 +7,11 @@ using Il2CppScheduleOne.Delivery;
 using Il2CppScheduleOne.DevUtilities;
 using Il2CppScheduleOne.GameTime;
 using Il2CppScheduleOne.UI.Phone.Delivery;
+using HarmonyLib;
+using Il2CppInterop.Runtime;
+using Il2CppScheduleOne.Money;
 using ModSchedule1.PhoneUI;
+using Object = UnityEngine.Object;
 using UnityEngine;
 using UnityEngine.UI;
 using GameProperty = Il2CppScheduleOne.Property.Property;
@@ -15,15 +19,15 @@ using GameProperty = Il2CppScheduleOne.Property.Property;
 namespace ModSchedule1.Features;
 
 /// <summary>
-/// App "Entregas" (DeliveryApp++): entregas em andamento, favoritos salvos e pedidos recorrentes diários.
-/// O jogo já tem histórico + reordenar; todo pedido daqui passa pelo DeliveryApp.Reorder do jogo (mesmas checagens,
-/// mesmo pagamento pelo banco, funciona para host e clientes).
+/// DeliveryApp++ dentro do app Delivery nativo: ★ favoritar e "Todo dia" em cada pedido do histórico, favoritos
+/// no topo como cartões nativos e pedidos recorrentes diários. Todo pedido passa pelo DeliveryApp.Reorder do jogo
+/// (mesmas checagens, mesmo pagamento pelo banco, funciona para host e clientes).
 /// </summary>
 public sealed class Deliveries : Feature<Deliveries>
 {
     public override string Id => "Deliveries";
     public override string Name => "DeliveryApp++";
-    public override string Description => "App Entregas: favoritos, pedidos recorrentes e entregas em andamento.";
+    public override string Description => "Favoritos e pedidos recorrentes no app Delivery do celular.";
     public override bool Shared => false;   // pessoal: cada jogador usa a própria config
 
     public sealed class OrderItem { public string Id = ""; public int Qty; }
@@ -40,13 +44,150 @@ public sealed class Deliveries : Feature<Deliveries>
     private const string File = "deliveries";
     public Data Saved { get; private set; } = new();
 
-    protected override void OnInit()
-    {
-        Saved = Store.Load<Data>(File);
-        PhoneApp.All.Add(new DeliveriesApp());
-    }
+    protected override void OnInit() => Saved = Store.Load<Data>(File);
 
     public void Persist() => Store.Save(File, Saved);
+
+    // ---------- integração com o app Delivery nativo ----------
+
+    private static string Signature(string store, string property, int dock, IEnumerable<(string Id, int Qty)> items) =>
+        $"{store}|{property}|{dock}|" + string.Join(",", items.Where(i => i.Qty > 0).OrderBy(i => i.Id).Select(i => $"{i.Id}x{i.Qty}"));
+
+    public static string Signature(Favorite f) => Signature(f.Store, f.Property, f.Dock, f.Items.Select(i => (i.Id, i.Qty)));
+
+    public static string Signature(DeliveryReceipt r)
+    {
+        var items = new List<(string, int)>();
+        foreach (var p in r.Items) if (p != null) items.Add((p.String, p.Int));
+        return Signature(r.StoreName, r.DestinationCode, r.LoadingDockIndex, items);
+    }
+
+    public Favorite? FindFavorite(DeliveryReceipt r)
+    {
+        var sig = Signature(r);
+        return Saved.Favorites.FirstOrDefault(f => Signature(f) == sig);
+    }
+
+    private static DeliveryReceipt ToReceipt(Favorite f)
+    {
+        var items = new Il2CppReferenceArray<StringIntPair>(f.Items.Count);
+        for (int i = 0; i < f.Items.Count; i++) items[i] = new StringIntPair(f.Items[i].Id, f.Items[i].Qty);
+        return new DeliveryReceipt("", f.Store, f.Property, f.Dock, items);
+    }
+
+    private sealed class ReceiptButtons { public Button Star = null!, Repeat = null!; }
+    private readonly Dictionary<IntPtr, ReceiptButtons> _buttons = new();
+    private readonly List<GameObject> _favoriteCards = new();
+    private bool _dumped;
+
+    private static readonly Color StarOn = new(0.95f, 0.75f, 0.2f);
+
+    /// <summary>★ e "Todo dia" à esquerda do botão de repetir de cada pedido (filhos dele, fora do layout).</summary>
+    private void AddButtons(DeliveryReceiptDisplay display)
+    {
+        var reorder = display.ReorderButton;
+        if (reorder == null || _buttons.ContainsKey(display.Pointer)) return;
+        NativeUi.DumpOnce(ref _dumped, reorder.transform.parent, "DeliveryReceiptDisplay (botão reorder)");
+        var b = new ReceiptButtons();
+        b.Star = NativeUi.CloneButton(reorder, reorder.transform, "MS1_Star", () => Guard("favoritar", () => ToggleFavorite(display)));
+        b.Repeat = NativeUi.CloneButton(reorder, reorder.transform, "MS1_Repeat", () => Guard("recorrente", () => CycleRepeat(display)));
+        foreach (var child in new[] { b.Star, b.Repeat })   // tira o rótulo de preço clonado do botão original
+            foreach (var t in child.GetComponentsInChildren<Text>(true)) t.text = "";
+        float h = reorder.GetComponent<RectTransform>().rect.height;
+        NativeUi.Place(b.Star, new Vector2(0, 0.5f), new Vector2(1, 0.5f), new Vector2(-6, 0), new Vector2(110, h));
+        NativeUi.Place(b.Repeat, new Vector2(0, 0.5f), new Vector2(1, 0.5f), new Vector2(-122, 0), new Vector2(130, h));
+        _buttons[display.Pointer] = b;
+    }
+
+    private void Bind(DeliveryReceiptDisplay display)
+    {
+        if (!_buttons.TryGetValue(display.Pointer, out var b) || b.Star == null) return;
+        var receipt = display.Receipt;
+        b.Star.gameObject.SetActive(Active && receipt != null);
+        b.Repeat.gameObject.SetActive(Active && receipt != null);
+        if (receipt == null) return;
+        var fav = FindFavorite(receipt);
+        NativeUi.SetText(b.Star, fav != null ? "Favorito" : "Favoritar");   // ASCII: a fonte do jogo pode não ter ★
+        var starText = b.Star.GetComponentInChildren<Text>(true);
+        if (starText != null) starText.color = fav != null ? StarOn : Color.white;
+        NativeUi.SetText(b.Repeat, fav == null || fav.RecurringHour < 0 ? "Repetir: não" : $"Todo dia {fav.RecurringHour:00}h");
+    }
+
+    private void ToggleFavorite(DeliveryReceiptDisplay display)
+    {
+        var r = display.Receipt;
+        if (r == null) return;
+        var fav = FindFavorite(r);
+        if (fav != null) Saved.Favorites.Remove(fav);
+        else Saved.Favorites.Add(FromReceipt(r.StoreName, r.DestinationCode, r.LoadingDockIndex, r.Items));
+        Persist();
+        RefreshApp();
+    }
+
+    // ciclo: desligado -> 6h -> 12h -> 18h -> desligado (recorrente vira favorito automaticamente)
+    private void CycleRepeat(DeliveryReceiptDisplay display)
+    {
+        var r = display.Receipt;
+        if (r == null) return;
+        var fav = FindFavorite(r);
+        if (fav == null) Saved.Favorites.Add(fav = FromReceipt(r.StoreName, r.DestinationCode, r.LoadingDockIndex, r.Items));
+        fav.RecurringHour = fav.RecurringHour switch { < 0 => 6, < 12 => 12, < 18 => 18, _ => -1 };
+        Persist();
+        RefreshApp();
+    }
+
+    private static void RefreshApp()
+    {
+        if (DeliveryApp.InstanceExists) DeliveryApp.Instance.UpdatePastDeliveries();
+    }
+
+    /// <summary>Favoritos como cartões nativos (mesmo prefab do histórico) no topo da aba de pedidos anteriores.</summary>
+    private void ShowFavorites(DeliveryApp app)
+    {
+        foreach (var go in _favoriteCards) if (go != null) Object.Destroy(go);
+        _favoriteCards.Clear();
+        if (!Active) return;
+        foreach (var fav in Saved.Favorites.AsEnumerable().Reverse())
+        {
+            var f = fav;
+            if (app.GetShop(f.Store) == null || !GameProperty.OwnedProperties.ToArray().Any(p => p != null && p.PropertyCode == f.Property))
+                continue;   // Set do jogo quebra com loja/propriedade inexistente
+            var card = Object.Instantiate(app._deliveryReceiptPrefab, app.PastDeliveriesContainer, false);
+            card.gameObject.name = "MS1_Favorite";
+            card.transform.SetAsFirstSibling();
+            card.Initialise();
+            card.SubscribeToOnSelect(DelegateSupport.ConvertDelegate<Il2CppSystem.Action<DeliveryReceipt>>(
+                new Action<DeliveryReceipt>(_ => Guard("pedir favorito", () =>
+                {
+                    var why = Order(f);
+                    if (why != null) Log.Warn("favorito não pedido: " + why);
+                    RefreshApp();
+                }))));
+            var receipt = ToReceipt(f);
+            float cost = app.GetDeliveryCost(receipt);
+            card.Set(receipt, cost, MoneyManager.Instance.sync___get_value_onlineBalance() >= cost);
+            _favoriteCards.Add(card.gameObject);
+        }
+        DeliveryApp.RefreshLayoutGroupsImmediateAndRecursive(app.PastDeliveriesContainer.gameObject);
+    }
+
+    [HarmonyPatch(typeof(DeliveryReceiptDisplay), nameof(DeliveryReceiptDisplay.Initialise))]
+    private static class InitialisePatch
+    {
+        private static void Postfix(DeliveryReceiptDisplay __instance) => I.Guard("DeliveryReceiptDisplay.Initialise", () => I.AddButtons(__instance));
+    }
+
+    [HarmonyPatch(typeof(DeliveryReceiptDisplay), nameof(DeliveryReceiptDisplay.Set))]
+    private static class SetPatch
+    {
+        private static void Postfix(DeliveryReceiptDisplay __instance) => I.Guard("DeliveryReceiptDisplay.Set", () => I.Bind(__instance));
+    }
+
+    [HarmonyPatch(typeof(DeliveryApp), nameof(DeliveryApp.UpdatePastDeliveries))]
+    private static class PastDeliveriesPatch
+    {
+        private static void Postfix(DeliveryApp __instance) => I.Guard("DeliveryApp.UpdatePastDeliveries", () => I.ShowFavorites(__instance));
+    }
 
     public static Favorite FromReceipt(string store, string property, int dock, Il2CppReferenceArray<StringIntPair> items)
     {
@@ -107,105 +248,5 @@ public sealed class Deliveries : Feature<Deliveries>
             if (why != null) Log.Warn($"pedido recorrente de {f.Store} não feito: {why}");
         }
         if (changed) Persist();
-    }
-}
-
-public sealed class DeliveriesApp : PhoneApp
-{
-    public override string AppName => "ModSchedule1Deliveries";
-    public override string IconLabel => "Entregas";
-    public override string IconGlyph => "E";
-    public override Color IconColor => new(0.15f, 0.55f, 0.55f);
-    protected override bool ShowIcon => Core.SeparateIcons;
-
-    private Transform _list = null!;
-    private Text _active = null!, _message = null!;
-
-    protected override void BuildUI(GameObject container)
-    {
-        _list = Header(container, "Entregas", out _);
-    }
-
-    protected override void OnOpened() => Rebuild();
-
-    // Só o bloco "em andamento" muda sozinho; o resto é reconstruído quando o jogador age.
-    protected override void OnTick()
-    {
-        if (_active == null || !Deliveries.I.Active || !DeliveryManager.InstanceExists) return;
-        var lines = new List<string>();
-        foreach (var d in DeliveryManager.Instance.Deliveries)
-        {
-            if (d == null) continue;
-            int t = d.GetTimeStatus();
-            string status = t == -2 ? "chegou, na doca" : t == -1 ? "esperando doca livre" : $"chega em {t / 60}h{t % 60:00}";
-            lines.Add($"{d.StoreName} -> {Deliveries.PropertyName(d.DestinationCode)}: {status}");
-        }
-        _active.text = lines.Count > 0 ? string.Join("\n", lines) : "nenhuma entrega a caminho";
-    }
-
-    private void Say(string text) { if (_message != null) _message.text = text; }
-
-    private void Rebuild()
-    {
-        Ui.Clear(_list);
-        _active = null!;
-        if (!Deliveries.I.Active) { Ui.Text(_list, "Ative o 'DeliveryApp++' no app Mods.", 18); return; }
-        _message = Ui.Text(_list, "", 15, minHeight: 22);
-        _message.color = new Color(1f, 0.85f, 0.4f);
-
-        Ui.Text(_list, "Em andamento", 18, bold: true);
-        _active = Ui.Text(_list, "", 15, minHeight: 20);
-
-        Ui.Text(_list, "Favoritos", 18, bold: true);
-        var favs = Deliveries.I.Saved.Favorites;
-        if (favs.Count == 0) Ui.Text(_list, "Toque em ★ num pedido do histórico para salvar aqui.", 14);
-        foreach (var fav in favs.ToList())
-        {
-            var f = fav;
-            var card = Ui.Card(_list);
-            var desc = Ui.Text(card.transform, Deliveries.Describe(f), 15, minHeight: 40);
-            desc.supportRichText = true;
-            var row = Ui.Row(card.transform, 38);
-            Ui.Button(row.transform, "Pedir agora", new Color(0.15f, 0.55f, 0.55f), () => Deliveries.I.Guard("pedir", () =>
-                Say(Deliveries.I.Order(f) is { } why ? "Não pedido: " + why : "Pedido feito!")), width: 150, height: 32);
-            Ui.Button(row.transform, f.RecurringHour < 0 ? "Recorrente: não" : $"Todo dia {f.RecurringHour:00}h",
-                new Color(0.3f, 0.3f, 0.34f), () =>
-                {
-                    // ciclo: desligado -> 6h -> 12h -> 18h -> desligado
-                    f.RecurringHour = f.RecurringHour switch { < 0 => 6, < 12 => 12, < 18 => 18, _ => -1 };
-                    Deliveries.I.Persist();
-                    Rebuild();
-                }, width: 180, height: 32);
-            Ui.Button(row.transform, "Remover", new Color(0.45f, 0.25f, 0.25f), () =>
-            {
-                favs.Remove(f);
-                Deliveries.I.Persist();
-                Rebuild();
-            }, width: 110, height: 32);
-        }
-
-        Ui.Text(_list, "Histórico do jogo", 18, bold: true);
-        if (!DeliveryManager.InstanceExists) return;
-        var history = DeliveryManager.Instance.DisplayedDeliveryHistory;
-        for (int i = history.Count - 1, shown = 0; i >= 0 && shown < 10; i--, shown++)
-        {
-            var r = history[i];
-            if (r == null) continue;
-            var asFav = Deliveries.FromReceipt(r.StoreName, r.DestinationCode, r.LoadingDockIndex, r.Items);
-            var card = Ui.Card(_list);
-            var desc = Ui.Text(card.transform, Deliveries.Describe(asFav), 15, minHeight: 40);
-            desc.supportRichText = true;
-            var row = Ui.Row(card.transform, 38);
-            Ui.Button(row.transform, "Pedir de novo", new Color(0.15f, 0.55f, 0.55f), () => Deliveries.I.Guard("repetir", () =>
-                Say(Deliveries.I.Order(asFav) is { } why ? "Não pedido: " + why : "Pedido feito!")), width: 160, height: 32);
-            Ui.Button(row.transform, "★ Favoritar", new Color(0.55f, 0.45f, 0.1f), () =>
-            {
-                favs.Add(asFav);
-                Deliveries.I.Persist();
-                Rebuild();
-                Say("Salvo nos favoritos.");
-            }, width: 150, height: 32);
-        }
-        OnTick();
     }
 }

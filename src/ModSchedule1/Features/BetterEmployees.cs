@@ -21,8 +21,8 @@ public sealed class BetterEmployees : Feature<BetterEmployees>
     protected override void OnInit()
     {
         _workSpeed = Setting("WorkSpeed", 1.5f, "Velocidade de trabalho x N", "Regar, plantar, colher, embalar, operar estações (soma com efeitos de drogas)");
-        _walkSpeed = Setting("WalkSpeed", 2.6f, "Velocidade de caminhada (m/s)", "Padrão do jogo: 1.8. 0 = não mexer");
-        _wage = Setting("WageMultiplier", 1f, "Salário diário x N", "1 = normal, 0.5 = metade");
+        _walkSpeed = Setting("WalkSpeed", 2.6f, "Velocidade de caminhada (m/s)", "Padrão do jogo: 1.8. 0 = não mexer", min: 0, max: 6);
+        _wage = Setting("WageMultiplier", 1f, "Salário diário x N", "1 = normal, 0.5 = metade", min: 0, max: 3);
         _botanistPots = Setting("BotanistMaxPots", 12, "Botanist: vasos por funcionário", "Jogo: 8. Acima do que cabe na lista, os extras funcionam mas não aparecem nela");
         _chemistStations = Setting("ChemistMaxStations", 6, "Chemist: estações por funcionário", "Jogo: 4");
         _handlerStations = Setting("HandlerMaxStations", 5, "Handler: estações por funcionário", "Jogo: 3");

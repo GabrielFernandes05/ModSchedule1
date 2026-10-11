@@ -54,4 +54,47 @@ public static class ConfigSync
     }
 
     public static bool Active => _lastApplied != null;
+
+    private const string Key = "ms1cfg", VersionKey = "ms1ver";
+    private static float _next;
+    private static string? _published;
+    private static bool _warnedVersion;
+
+    /// <summary>
+    /// A cada 2 s (Core.OnUpdate): host publica a config de jogo no lobby; cliente lê e aplica.
+    /// ponytail: polling em vez de callback LobbyDataUpdate (o jogo não instancia esse genérico no IL2CPP);
+    /// GetLobbyData lê um cache local da Steam, é barato.
+    /// </summary>
+    public static void Tick()
+    {
+        if (UnityEngine.Time.unscaledTime < _next) return;
+        _next = UnityEngine.Time.unscaledTime + 2f;
+        try
+        {
+            if (!Net.InLobby) { Clear(); _published = null; return; }
+            if (Net.IsHost)
+            {
+                Clear();
+                var payload = BuildPayload();
+                if (payload == _published) return;
+                Net.SetLobbyData(Key, payload);
+                Net.SetLobbyData(VersionKey, Core.Version);
+                _published = payload;
+                Log.Info($"config de jogo publicada para os jogadores ({payload.Length} bytes)");
+            }
+            else if (Net.IsClientOnly)
+            {
+                var hostVersion = Net.GetLobbyData(VersionKey);
+                if (!_warnedVersion && !string.IsNullOrEmpty(hostVersion) && hostVersion != Core.Version)
+                {
+                    _warnedVersion = true;
+                    Log.Warn($"o host usa ModSchedule1 {hostVersion} e você {Core.Version}: abram o jogo pelo launcher para atualizar");
+                }
+                var payload = Net.GetLobbyData(Key);
+                if (string.IsNullOrEmpty(payload)) { Clear(); return; }   // host sem o mod (ou ainda publicando)
+                Apply(payload!);
+            }
+        }
+        catch (System.Exception e) { Log.Error($"sincronização: {e.Message}"); }
+    }
 }

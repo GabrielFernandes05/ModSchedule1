@@ -9,7 +9,36 @@ namespace ModSchedule1.PhoneUI;
 public static class Ui
 {
     private static Font? _font;
-    public static Font Font => _font ??= LoadFont();
+    public static Font Font => Native.Font != null ? Native.Font : _font ??= LoadFont();
+
+    /// <summary>
+    /// Estilo capturado de um app nativo do celular (fonte, cores, fundo, botão): nossos apps ficam com a mesma cara.
+    /// Sem app nativo disponível, cai no estilo escuro próprio.
+    /// </summary>
+    public static class Native
+    {
+        public static Font? Font;
+        public static Color Text = Color.white;
+        public static Color Background = new(0.08f, 0.09f, 0.11f, 1f);
+        public static Sprite? BackgroundSprite;
+        public static Button? ButtonTemplate;
+        public static bool Captured;
+
+        public static void Capture()
+        {
+            Captured = false;
+            if (!Il2CppScheduleOne.UI.Phone.Messages.DealerManagementApp.InstanceExists) return;
+            var app = Il2CppScheduleOne.UI.Phone.Messages.DealerManagementApp.Instance;
+            if (app.CashLabel != null) { Font = app.CashLabel.font; Text = app.CashLabel.color; }
+            ButtonTemplate = app.AssignCustomerButton;
+            var bg = app.appContainer != null ? app.appContainer.GetComponentInChildren<Image>(true) : null;
+            if (bg != null) { Background = bg.color; BackgroundSprite = bg.sprite; }
+            Captured = true;
+        }
+    }
+
+    /// <summary>Texto secundário: cor do texto nativo, mais apagada (funciona em fundo claro ou escuro).</summary>
+    public static Color Muted => new(Native.Text.r, Native.Text.g, Native.Text.b, 0.65f);
 
     private static Font LoadFont()
     {
@@ -99,7 +128,7 @@ public static class Ui
         t.fontSize = size;
         t.fontStyle = bold ? FontStyle.Bold : FontStyle.Normal;
         t.alignment = anchor;
-        t.color = Color.white;
+        t.color = Native.Text;
         t.horizontalOverflow = HorizontalWrapMode.Wrap;
         t.verticalOverflow = VerticalWrapMode.Overflow;
         var le = go.AddComponent<LayoutElement>();
@@ -111,6 +140,18 @@ public static class Ui
     public static (Button button, Text label, Image bg) Button(Transform parent, string label, Color color, Action onClick,
         float width = 160, float height = 40)
     {
+        if (Native.ButtonTemplate != null)
+        {
+            // botão clonado do app nativo: mesma cor/sprite/fonte; a cor pedida vira só um leve tom
+            var b = NativeUi.CloneButton(Native.ButtonTemplate, parent, "Button", onClick);
+            b.GetComponent<LayoutElement>().ignoreLayout = false;
+            var nle = b.GetComponent<LayoutElement>();
+            nle.minWidth = nle.preferredWidth = width;
+            nle.minHeight = nle.preferredHeight = height;
+            var nlabel = b.GetComponentInChildren<Text>(true);
+            if (nlabel != null) { nlabel.text = label; nlabel.resizeTextForBestFit = true; nlabel.resizeTextMinSize = 10; }
+            return (b, nlabel!, b.GetComponent<Image>());
+        }
         var go = Child("Button", parent);
         var bg = go.AddComponent<Image>();
         bg.color = color;

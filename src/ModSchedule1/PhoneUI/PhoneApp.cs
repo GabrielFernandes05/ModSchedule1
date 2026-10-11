@@ -22,7 +22,7 @@ namespace ModSchedule1.PhoneUI;
 public abstract class PhoneApp
 {
     /// <summary>All apps of the megamod. Features add theirs here.</summary>
-    public static readonly List<PhoneApp> All = new() { new ControlPanelApp() };
+    public static readonly List<PhoneApp> All = new() { new FinanceApp() };
 
     protected static readonly Log Log = new("Celular");
 
@@ -32,8 +32,6 @@ public abstract class PhoneApp
     /// <summary>Letra/símbolo desenhado sobre o ícone (fonte embutida do Unity: use ASCII, ex. "$").</summary>
     public virtual string IconGlyph => "";
     protected virtual bool Horizontal => true;
-    /// <summary>Apps de dados podem ficar só como atalho dentro do app Mods (opção "Ícones separados").</summary>
-    protected virtual bool ShowIcon => true;
 
     private GameObject? _panel;
     private GameObject? _container;
@@ -69,7 +67,7 @@ public abstract class PhoneApp
         hrt.pivot = new Vector2(0.5f, 1);
         hrt.sizeDelta = new Vector2(0, 60);
         hrt.anchoredPosition = Vector2.zero;
-        header.AddComponent<Image>().color = new Color(0.12f, 0.13f, 0.16f, 1f);
+        header.AddComponent<Image>().color = Color.Lerp(Ui.Native.Background, Ui.Native.Text, 0.08f);
         titleText = Ui.Text(header.transform, "  " + title, 26, bold: true);
         var trt = titleText.GetComponent<RectTransform>();
         trt.anchorMin = Vector2.zero; trt.anchorMax = Vector2.one; trt.offsetMin = trt.offsetMax = Vector2.zero;
@@ -88,7 +86,9 @@ public abstract class PhoneApp
 
         _panel = Ui.Stretch(AppName, appsCanvas);
         _container = Ui.Stretch("Container", _panel.transform);
-        _container.AddComponent<Image>().color = new Color(0.08f, 0.09f, 0.11f, 1f);
+        var bg = _container.AddComponent<Image>();
+        bg.color = Ui.Native.Background;
+        if (Ui.Native.BackgroundSprite != null) { bg.sprite = Ui.Native.BackgroundSprite; bg.type = Image.Type.Sliced; }
         BuildUI(_container);
         _container.SetActive(false);
 
@@ -97,8 +97,8 @@ public abstract class PhoneApp
         GameInput.RegisterExitListener(
             DelegateSupport.ConvertDelegate<GameInput.ExitDelegate>(new Action<ExitAction>(OnExit)), 1);
 
-        if (ShowIcon) SpawnIcon(home);
-        Log.Info($"app '{IconLabel}' criado{(ShowIcon ? "" : " (só atalho no app Mods)")}");
+        SpawnIcon(home);
+        Log.Info($"app '{IconLabel}' criado");
     }
 
     private void SpawnIcon(HomeScreen home)
@@ -189,6 +189,7 @@ public abstract class PhoneApp
         private static void Postfix(HomeScreen __instance)
         {
             if (SceneManager.GetActiveScene().name != "Main") return;
+            try { Ui.Native.Capture(); } catch (Exception e) { Log.Warn($"estilo nativo indisponível: {e.Message}"); }
             foreach (var app in All)
             {
                 try { app.Spawn(__instance); }
