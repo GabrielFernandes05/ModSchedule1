@@ -35,6 +35,9 @@ public sealed class ControlPanelApp : PhoneApp
             var f = feature;
             var row = Ui.Row(list);
             var label = Ui.Text(row.transform, "", 18);
+            var settings = BuildSettings(list, f);
+            if (settings != null)
+                Ui.Button(row.transform, "Ajustes", Off, () => settings.SetActive(!settings.activeSelf), width: 90);
             var (_, btnText, btnBg) = Ui.Button(row.transform, "", Off, () =>
             {
                 if (f.Faulted) return;
@@ -64,7 +67,76 @@ public sealed class ControlPanelApp : PhoneApp
             dBg.color = Core.DebugLogging ? On : Off;
         });
 
-        Ui.Text(list, "Configurações finas: UserData/ModSchedule1.cfg", 14, minHeight: 40).color = new Color(0.7f, 0.7f, 0.7f);
+        Ui.Text(list, "Ajustes: valores de cada mod. Textos e listas: UserData/ModSchedule1.cfg", 14, minHeight: 40).color = new Color(0.7f, 0.7f, 0.7f);
+        Refresh();
+    }
+
+    /// <summary>
+    /// Painel recolhível com as configurações da feature (tudo menos Enabled): bool liga/desliga, número com -/+.
+    /// Texto só é exibido (edição no .cfg). Mudanças disparam OnEntryValueChanged, então a feature reaplica sozinha.
+    /// </summary>
+    private GameObject? BuildSettings(Transform list, Feature f)
+    {
+        var entries = new List<MelonPreferences_Entry>();
+        foreach (var e in f.Category.Entries)
+            if (e.Identifier != "Enabled") entries.Add(e);
+        if (entries.Count == 0) return null;
+
+        var panel = Ui.Child("Settings_" + f.Id, list);
+        var v = panel.AddComponent<VerticalLayoutGroup>();
+        v.spacing = 4;
+        v.padding = new RectOffset(30, 0, 0, 8);
+        v.childControlWidth = v.childControlHeight = true;
+        v.childForceExpandWidth = true;
+        v.childForceExpandHeight = false;
+
+        foreach (var entry in entries)
+        {
+            var e = entry;
+            var row = Ui.Row(panel.transform, 38);
+            var label = Ui.Text(row.transform, "", 15);
+            label.color = new Color(0.85f, 0.85f, 0.85f);
+            System.Action refresh = () => label.text = $"{e.DisplayName}: <b>{Format(e.BoxedValue)}</b>";
+            label.supportRichText = true;
+
+            switch (e)
+            {
+                case MelonPreferences_Entry<bool> b:
+                    Ui.Button(row.transform, "alternar", Off, () => { b.Value = !b.Value; Saved(); }, width: 100, height: 32);
+                    break;
+                case MelonPreferences_Entry<int> i:
+                    Ui.Button(row.transform, "-", Off, () => { i.Value = System.Math.Max(0, i.Value - 1); Saved(); }, width: 44, height: 32);
+                    Ui.Button(row.transform, "+", Off, () => { i.Value += 1; Saved(); }, width: 44, height: 32);
+                    break;
+                case MelonPreferences_Entry<float> fl:
+                    Ui.Button(row.transform, "-", Off, () => { fl.Value = System.Math.Max(0f, fl.Value - Step(fl.Value)); Saved(); }, width: 44, height: 32);
+                    Ui.Button(row.transform, "+", Off, () => { fl.Value += Step(fl.Value); Saved(); }, width: 44, height: 32);
+                    break;
+                default:
+                    label.fontSize = 13;   // texto/listas: só leitura aqui
+                    break;
+            }
+            _refreshers.Add(refresh);
+        }
+        panel.SetActive(false);
+        return panel;
+    }
+
+    // ponytail: passo de 10% do valor (mín. 0.1) serve de 0.5 a 100000 sem teclado; precisão fina fica no .cfg.
+    private static float Step(float value) => System.Math.Max(0.1f, (float)System.Math.Round(System.Math.Abs(value) * 0.1f, 1));
+
+    private static string Format(object? value) => value switch
+    {
+        bool b => b ? "sim" : "não",
+        float f => f.ToString("0.##"),
+        string s when s.Length == 0 => "(vazio)",
+        null => "-",
+        _ => value.ToString() ?? "-",
+    };
+
+    private void Saved()
+    {
+        MelonPreferences.Save();
         Refresh();
     }
 
