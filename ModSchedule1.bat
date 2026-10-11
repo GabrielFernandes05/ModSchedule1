@@ -1,5 +1,5 @@
 @echo off
-rem ModSchedule1 - baixa o launcher mais recente do GitHub e abre a janela do mod manager.
+rem ModSchedule1 - instalador: baixa o launcher (.exe), cria atalho na Area de Trabalho e abre. So precisa rodar uma vez.
 setlocal
 set "REPO=GabrielFernandes05/ModSchedule1"
 set "ROOT=%LOCALAPPDATA%\ModSchedule1"

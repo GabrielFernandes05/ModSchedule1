@@ -13,7 +13,7 @@ namespace ModSchedule1;
 
 public sealed class Core : MelonMod
 {
-    public const string Version = "0.6.0";
+    public const string Version = "0.7.0";
 
     /// <summary>Every feature of the megamod. Adding a mod = adding a line here (and in release/features.json).</summary>
     public static readonly List<Feature> Features = new()
@@ -75,7 +75,22 @@ public sealed class Core : MelonMod
         }
         catch (Exception e) { Log.Error($"apps de celular desativados, patch da HomeScreen falhou: {e}"); }
 
+        WriteSession("running");
         MelonPreferences.Save();   // grava o cfg com todos os valores padrão para o launcher e para edição manual
+    }
+
+    // O launcher lê isto quando o jogo fecha: "running" = não passou por OnApplicationQuit (crash/kill).
+    public override void OnApplicationQuit() => WriteSession("exit");
+
+    private static void WriteSession(string state)
+    {
+        try
+        {
+            var dir = System.IO.Path.Combine(MelonLoader.Utils.MelonEnvironment.UserDataDirectory, "ModSchedule1");
+            System.IO.Directory.CreateDirectory(dir);
+            System.IO.File.WriteAllText(System.IO.Path.Combine(dir, "session.txt"), $"{state} {Version} {DateTime.Now:O}");
+        }
+        catch (Exception e) { Log.Warn($"session.txt: {e.Message}"); }
     }
 
     public override void OnSceneWasLoaded(int buildIndex, string sceneName)

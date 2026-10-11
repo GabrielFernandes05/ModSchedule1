@@ -4,18 +4,23 @@ Megamod para **Schedule I**: um único `ModSchedule1.dll` que substitui a pilha 
 
 ## Para jogar
 
-1. Baixe **[ModSchedule1.bat](https://raw.githubusercontent.com/GabrielFernandes05/ModSchedule1/master/ModSchedule1.bat)** (clique com o botão direito em "Salvar link como") e dê dois cliques nele.
-2. A janela do launcher:
-   - acha o jogo pela Steam ou pergunta onde ele está;
-   - detecta a versão (Normal/IL2CPP ou Mono);
-   - baixa a última versão da branch `master` deste repo;
-   - instala o MelonLoader 0.7.3 sem console e sem splash;
-   - move qualquer outro mod ou loader para `_ModSchedule1_backup` (nada é apagado).
-3. Clique em **Iniciar jogo**. A primeira abertura demora alguns minutos, porque o MelonLoader gera os assemblies.
+1. Baixe o **[ModSchedule1.exe](https://raw.githubusercontent.com/GabrielFernandes05/ModSchedule1/master/release/launcher/ModSchedule1.exe)**.
+   - Se o Windows mostrar "O Windows protegeu o computador", clique em **Mais informações** e depois em **Executar assim mesmo**. O aviso aparece porque o .exe não é assinado.
+   - Quem já tem o `ModSchedule1.bat` pode rodá-lo uma vez: ele instala o .exe em `%LOCALAPPDATA%\ModSchedule1` e cria um atalho na Área de Trabalho.
+2. O launcher faz tudo sozinho:
+   - acha o jogo pela Steam (ou pergunta onde ele está);
+   - confere se o jogo está na versão Normal (na Mono, ele bloqueia e explica como trocar);
+   - baixa a última versão do `master`;
+   - instala o MelonLoader 0.7.3 escondido;
+   - move outros mods e loaders para `_ModSchedule1_backup` (nada é apagado);
+   - atualiza a si mesmo quando sai uma versão nova.
+3. Clique em **JOGAR**. Deixe o launcher aberto: ele mostra as mensagens e erros do mod em tempo real e, se o jogo crashar, guarda o log em `%LOCALAPPDATA%\ModSchedule1\crash-logs`.
 
-O botão **Instalação limpa** refaz tudo do zero. A configuração fica em `<jogo>\UserData\ModSchedule1.cfg` (uma seção por mod, com `Enabled = true/false`). Os logs ficam em `<jogo>\MelonLoader\Latest.log` (botão **Log do jogo**) e `%LOCALAPPDATA%\ModSchedule1\launcher.log`.
+A primeira abertura do jogo demora alguns minutos, porque o MelonLoader gera os assemblies.
 
-**Multiplayer:** todos precisam abrir pelo launcher para ter o mesmo DLL. Mods marcados como "só host" rodam apenas em quem hospeda. Usem a mesma config de Better Stacks em todos os PCs.
+**Ferramentas:** instalação limpa, abrir o log do jogo, abrir a config (`UserData\ModSchedule1.cfg`) e abrir a pasta do jogo.
+
+**Multiplayer:** todos precisam abrir o jogo pelo launcher para ter o mesmo DLL. Mods marcados como "só host" rodam apenas em quem hospeda.
 
 ## Mods
 
@@ -34,7 +39,7 @@ O botão **Instalação limpa** refaz tudo do zero. A configuração fica em `<j
 | Employee Facilities | Funcionários dividem cama/armário |
 | Apps: Mods, Banco, Lavagem, Dealers, Receitas, Entregas | No celular do jogo |
 
-Próximos (v2, precisam de assets novos): More Guns, More Clothing, Minimap, Robbery.
+Próximos (precisam de assets novos, a partir da 0.8): More Guns, More Clothing, Minimap, Robbery.
 
 **Config:** cada mod tem "Ajustes" no app Mods do celular; tudo fica em `UserData/ModSchedule1.cfg`.
 No multiplayer, Better Stacks e Station Speed precisam da mesma config em todos os PCs.
@@ -46,11 +51,12 @@ O mod é compilado contra os assemblies que o MelonLoader gera na máquina com o
 1. No Windows, depois de abrir o jogo uma vez pelo launcher, copie da pasta do jogo para `lib/game/` neste repo:
    - `MelonLoader/net6/`
    - `MelonLoader/Il2CppAssemblies/`
-2. Compile e publique:
+2. Compile e publique (mod e launcher):
    ```
    dotnet build src/ModSchedule1 -c Release
    ```
-   O DLL vai para `release/il2cpp/ModSchedule1.dll`. Faça commit dele junto com `release/features.json` (atualize a `version` lá e em `Core.Version`). Os jogadores recebem a atualização na próxima vez que abrirem o `.bat`.
+   O DLL vai para `release/il2cpp/ModSchedule1.dll`. O launcher: `dotnet build launcher/ModSchedule1.Launcher -c Release` gera `release/launcher/ModSchedule1.exe` e `version.txt` (suba o `<Version>` no csproj para os launchers instalados se atualizarem).
+   Verificação da lógica de arquivos do launcher: `dotnet run --project launcher/EngineCheck -c Release`. Faça commit dele junto com `release/features.json` (atualize a `version` lá e em `Core.Version`). Os jogadores recebem a atualização na próxima vez que abrirem o `.bat`.
    Para compilar direto da pasta do jogo: `dotnet build src/ModSchedule1 -c Release -p:GameDir="D:\...\Schedule I"`.
 
 **Estrutura:**
