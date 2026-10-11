@@ -36,7 +36,7 @@ A primeira abertura do jogo demora alguns minutos, porque o MelonLoader gera os 
 | Station Speed | Estações mais rápidas (multiplicador por tipo) | do host |
 | Better Employees | Trabalho/passo mais rápidos, salário ajustável, mais estações por funcionário | do host |
 | Employee Facilities | Funcionários dividem cama/armário | do host |
-| Ações rápidas | Pula as animações de terra, plantio, aditivos, rega, colheita e cogumelos | pessoal |
+| Ações rápidas | Pula as animações de terra, plantio, aditivos, rega, encher regador, colheita, cogumelos e das mesas: embalagem (embala tudo), mixer, química (sem explosão), caldeirão, forno e prensa | pessoal |
 | Compass Distances | Distância de todos os marcadores na bússola | pessoal |
 | Auto Clear Completed Deals | Esconde conversas de clientes sem negócio pendente | pessoal |
 | Dealers+ | Coletar dinheiro no app de dealers do jogo | pessoal |
@@ -47,6 +47,7 @@ A primeira abertura do jogo demora alguns minutos, porque o MelonLoader gera os 
 | More Clothing | Peças que só NPCs usavam (uniformes etc.) à venda na loja de roupas | do host |
 | Minimap | Minimapa redondo no canto da tela, com os ícones do mapa do celular; gira com a câmera | pessoal |
 | Robbery | Na tela da loja: **Assaltar o caixa** ($350–750, 1x por dia por loja; armado sempre dá certo) e **Furtar o carrinho** (chance de ser visto). O caixa chama a polícia | do host |
+| Acelerar o tempo | **F6** liga/desliga o relógio acelerado (10x, configurável). Tudo passa minuto a minuto como no normal; para sozinho às 4:00 (hora de dormir) | só host |
 
 **Configurações:** botão **Mods** no menu do jogo (principal ou pausa), logo abaixo de Settings; também em Configurações → aba Mods. Clique no nome de um mod para ver as opções. Tudo fica salvo em `UserData/ModSchedule1.cfg`.
 

@@ -1,5 +1,5 @@
 {
-  "version": "0.10.0",
+  "version": "0.11.0",
   "features": [
     {
       "id": "BetterStacks",
@@ -101,7 +101,7 @@
       "id": "FastActions",
       "name": "Ações rápidas",
       "default": true,
-      "description": "Pula animações de terra, plantio, aditivos, rega, colheita e cogumelos."
+      "description": "Pula as animações de plantio, rega, colheita, cogumelos e das mesas (embalagem, mixer, química, caldeirão, forno, prensa)."
     },
     {
       "id": "MoreGuns",
@@ -126,6 +126,12 @@
       "name": "Robbery",
       "default": true,
       "description": "Assaltar o caixa ou furtar o carrinho nas lojas (botões na tela da loja)."
+    },
+    {
+      "id": "TimeWarp",
+      "name": "Acelerar o tempo",
+      "default": true,
+      "description": "Tecla (padrão F6) liga/desliga o tempo acelerado. Para sozinho às 4:00. Só o host."
     }
   ]
 }

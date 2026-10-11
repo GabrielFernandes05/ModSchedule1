@@ -3,26 +3,29 @@ using HarmonyLib;
 using Il2CppScheduleOne.DevUtilities;
 using Il2CppScheduleOne.Growing;
 using Il2CppScheduleOne.ItemFramework;
+using Il2CppScheduleOne.ObjectScripts;
 using Il2CppScheduleOne.PlayerScripts;
 using Il2CppScheduleOne.PlayerTasks;
 using Il2CppScheduleOne.PlayerTasks.Tasks;
+using Il2CppScheduleOne.Product.Packaging;
 using UnityEngine;
 
 namespace ModSchedule1.Features;
 
 /// <summary>
 /// Pula as animações/minigames das tarefas do jogador (como o Operations Manager): colocar terra, plantar, aditivos,
-/// regar, colher, cogumelos. Cada tarefa termina pelo PRÓPRIO método de conclusão do jogo, então consumo de itens,
+/// regar, colher, cogumelos e as mesas (embalagem, mixer, química, caldeirão, forno, prensa). Cada tarefa termina pelo PRÓPRIO método de conclusão do jogo, então consumo de itens,
 /// lixo, XP, contadores de quest e RPCs de rede são exatamente os mesmos do jeito manual.
 /// </summary>
 public sealed class FastActions : Feature<FastActions>
 {
     public override string Id => "FastActions";
     public override string Name => "Ações rápidas";
-    public override string Description => "Pula as animações de terra, plantio, aditivos, rega, colheita e cogumelos.";
+    public override string Description => "Pula as animações de plantio, rega, colheita, cogumelos e das mesas (embalagem, mixer, química, caldeirão, forno, prensa).";
     public override bool Shared => false;   // pessoal: cada jogador decide para as próprias ações
 
-    private Pref<bool> _soil = null!, _seed = null!, _additive = null!, _water = null!, _harvest = null!, _mushroom = null!;
+    private Pref<bool> _soil = null!, _seed = null!, _additive = null!, _water = null!, _harvest = null!, _mushroom = null!,
+        _packaging = null!, _mixing = null!, _chemistry = null!, _cauldron = null!, _oven = null!, _press = null!;
     private IntPtr _handled;   // tarefa já resolvida (ex.: colheita parou por inventário cheio: segue manual)
 
     protected override void OnInit()
@@ -30,9 +33,15 @@ public sealed class FastActions : Feature<FastActions>
         _soil = Setting("Soil", true, "Colocar terra/substrato");
         _seed = Setting("Seeds", true, "Plantar sementes");
         _additive = Setting("Additives", true, "Fertilizante, PGR e Speed Grow");
-        _water = Setting("Water", true, "Regar com regador");
+        _water = Setting("Water", true, "Regar e encher o regador");
         _harvest = Setting("Harvest", true, "Colher (todos os botões de uma vez)");
-        _mushroom = Setting("Mushrooms", true, "Cogumelos: spawn, borrifar e colher");
+        _mushroom = Setting("Mushrooms", true, "Cogumelos: inocular, spawn, borrifar e colher");
+        _packaging = Setting("Packaging", true, "Embalar (embala tudo o que der)");
+        _mixing = Setting("Mixing", true, "Mixer");
+        _chemistry = Setting("Chemistry", true, "Estação de química (sem risco de explosão)");
+        _cauldron = Setting("Cauldron", true, "Caldeirão");
+        _oven = Setting("LabOven", true, "Forno: colocar e quebrar o produto");
+        _press = Setting("BrickPress", true, "Prensa de tijolos");
     }
 
     private void Skip(Task t)
@@ -45,6 +54,52 @@ public sealed class FastActions : Feature<FastActions>
         else if (t.TryCast<ApplyShroomSpawnTask>() is { } spawn) { if (_mushroom.Value) spawn.Success(); }
         else if (t.TryCast<MistMushroomBedTask>() is { } mist) { if (_mushroom.Value) Mist(mist); }
         else if (t.TryCast<HarvestMushroomBedTask>() is { } shrooms) { if (_mushroom.Value) HarvestShrooms(shrooms); }
+        else if (t.TryCast<InocculateGrainBagTask>() is { } inoculate) { if (_mushroom.Value) inoculate.Success(); }
+        else if (t.TryCast<FillWaterContainer>() is { } fill) { if (_water.Value) Fill(fill); }
+        // mesas: o Success de cada tarefa é o que o jogo chama no fim do minigame (consome, gera lixo, inicia a operação)
+        else if (t.TryCast<PackageProductTask>() is { } pack) { if (_packaging.Value) pack.Success(); }   // o jogo reabre a próxima sozinho
+        else if (t.TryCast<PackageProductTaskMk2>() is { } mk2) { if (_packaging.Value) PackMk2(mk2); }
+        else if (t.TryCast<UseMixingStationTask>() is { } mix) { if (_mixing.Value) mix.Success(); }
+        else if (t.TryCast<UseChemistryStationTask>() is { } chem) { if (_chemistry.Value) Chemistry(chem); }
+        else if (t.TryCast<CauldronTask>() is { } cauldron) { if (_cauldron.Value) cauldron.Success(); }
+        else if (t.TryCast<StartLabOvenTask>() is { } ovenLiquid) { if (_oven.Value) ovenLiquid.Success(); }
+        else if (t.TryCast<LabOvenSolidTask>() is { } ovenSolid) { if (_oven.Value) ovenSolid.Success(); }
+        else if (t.TryCast<FinalizeLabOven>() is { } ovenDone) { if (_oven.Value) { ovenDone.Shatter(); ovenDone.Success(); } }
+        else if (t.TryCast<UseBrickPress>() is { } press) { if (_press.Value) { press.currentStep = UseBrickPress.EStep.Complete; press.StopTask(); } }
+    }
+
+    // Mk2: a ferramenta embala vários pacotes por tarefa; o jogo chama PackSingleInstance por pacote e Success no fim.
+    private void PackMk2(PackageProductTaskMk2 t)
+    {
+        var st = t.station;
+        var def = st.PackagingSlot.ItemInstance?.Definition?.TryCast<PackagingDefinition>();
+        if (def == null) return;
+        int per = Math.Max(1, def.Quantity);
+        int packs = Math.Min(st.ProductSlot.Quantity, st.PackagingSlot.Quantity * per) / per;
+        int done = 0;
+        for (; done < packs && st.GetState(PackagingStation.EMode.Package) == PackagingStation.EState.CanBegin; done++) st.PackSingleInstance();
+        t.Success();
+        Log.Debug($"embalados {done} pacotes (Mk2)");
+    }
+
+    // Química: o Success guarda cor/nível do frasco só para o visual do cozimento; sem o minigame o frasco está vazio.
+    private void Chemistry(UseChemistryStationTask c)
+    {
+        var flask = c.Station.BoilingFlask.LiquidContainer;
+        if (flask.CurrentLiquidLevel < 0.05f)
+        {
+            flask.SetLiquidColor(c.Recipe.FinalLiquidColor, true, true);
+            flask.SetLiquidLevel(0.6f, false);
+        }
+        c.Success();
+    }
+
+    private void Fill(FillWaterContainer f)
+    {
+        var can = f._waterContainerItem;
+        if (can == null) return;
+        can.SetFillAmount(can.WaterContainerDefinition.Capacity);
+        f.Success();
     }
 
     // Terra: abre o saco (consome o item e gera o lixo), define o solo e enche o vaso; sucesso só se encheu (como no jogo).
