@@ -1,6 +1,8 @@
 using System.Collections.Generic;
 using HarmonyLib;
-using Il2CppScheduleOne.Core.Items.Framework;   // EItemCategory e BaseItemInstance (Il2CppScheduleOne.Core.dll)
+using Il2CppScheduleOne;
+using Il2CppScheduleOne.Core.Items.Framework;   // EItemCategory (Il2CppScheduleOne.Core.dll)
+using Il2CppScheduleOne.ItemFramework;
 using Il2CppScheduleOne.ObjectScripts;
 using MelonLoader;
 
@@ -13,11 +15,12 @@ public sealed class BetterStacks : Feature<BetterStacks>
     public override string Name => "Better Stacks";
     public override string Description => "Pilhas maiores por categoria de item e mixing station maior/mais rápida.";
 
-    // Multiplicadores por nome de EItemCategory (string, para não quebrar se o jogo adicionar categorias).
+    // Multiplicadores por nome de EItemCategory (string, para não quebrar se o jogo renomear categorias).
     private readonly Dictionary<string, MelonPreferences_Entry<int>> _multipliers = new();
     private MelonPreferences_Entry<int> _mixCapacity = null!;
     private MelonPreferences_Entry<int> _mixSpeed = null!;
-    private readonly HashSet<string> _logged = new();
+    // Valor original de cada definição (por ID): aplicar é sempre original x multiplicador, então ligar/desligar não acumula.
+    private readonly Dictionary<string, int> _originals = new();
 
     protected override void OnInit()
     {
@@ -36,34 +39,50 @@ public sealed class BetterStacks : Feature<BetterStacks>
         Mult("Decoration", 1);
         _mixCapacity = Setting("MixingStationCapacity", 2, "Mixing station: capacidade x N");
         _mixSpeed = Setting("MixingStationSpeed", 2, "Mixing station: velocidade x N");
+
+        EnabledEntry.OnEntryValueChanged.Subscribe((_, _) => Apply());
+        foreach (var m in _multipliers.Values) m.OnEntryValueChanged.Subscribe((_, _) => Apply());
     }
 
-    // StackLimit é chamado o tempo todo: resolve a entry da categoria uma vez só (evita ToString por chamada).
-    private readonly Dictionary<EItemCategory, MelonPreferences_Entry<int>?> _byCategory = new();
+    public int MultiplierFor(EItemCategory category) =>
+        _multipliers.TryGetValue(category.ToString(), out var e) && e.Value > 0 ? e.Value : 1;
 
-    public int MultiplierFor(EItemCategory category)
-    {
-        if (!_byCategory.TryGetValue(category, out var e))
-            _byCategory[category] = e = _multipliers.TryGetValue(category.ToString(), out var found) ? found : null;
-        return e != null && e.Value > 0 ? e.Value : 1;
-    }
+    public override void OnSceneLoaded(string scene) => Apply();
 
-    // StackLimit é declarado em BaseItemInstance (nenhuma subclasse sobrescreve no 0.4.7).
-    [HarmonyPatch(typeof(BaseItemInstance), nameof(BaseItemInstance.StackLimit), MethodType.Getter)]
-    private static class StackLimitPatch
+    /// <summary>
+    /// Muda o StackLimit na DEFINIÇÃO do item. A v0.1 patchava só o getter da instância, e a UI/código de merge lia o
+    /// limite da definição (20) enquanto a instância dizia 40: arrastar uma pilha sobre outra travava o jogo.
+    /// </summary>
+    private void Apply()
     {
-        private static void Postfix(BaseItemInstance __instance, ref int __result)
+        try
         {
-            if (!I.Active) return;
-            try
-            {
-                int baseLimit = __result;
-                __result = baseLimit * I.MultiplierFor(__instance.Category);
-                if (Core.DebugLogging && I._logged.Add(__instance.Name))
-                    I.Log.Debug($"{__instance.Name} ({__instance.Category}): pilha {baseLimit} -> {__result}");
-            }
-            catch (System.Exception e) { I.Fault("StackLimit", e); }
+            if (!Registry.InstanceExists) { Log.Debug("Registry ainda não existe; aplica na próxima cena"); return; }
+            int changed = 0;
+            foreach (var def in Registry.Instance.GetAllItems())
+                if (ApplyTo(def)) changed++;
+            Log.Info($"limites de pilha aplicados: {changed} itens alterados ({_originals.Count} conhecidos)");
         }
+        catch (System.Exception e) { Fault("Apply", e); }
+    }
+
+    private bool ApplyTo(ItemDefinition? def)
+    {
+        if (def == null) return false;
+        if (!_originals.TryGetValue(def.ID, out int original))
+            _originals[def.ID] = original = def.StackLimit;
+        int target = EnabledEntry.Value && !Faulted ? original * MultiplierFor(def.Category) : original;
+        if (def.StackLimit == target) return false;
+        Log.Debug($"{def.Name} ({def.Category}): pilha {def.StackLimit} -> {target}");
+        def.StackLimit = target;
+        return true;
+    }
+
+    // Produtos novos (misturas) entram no Registry no meio da partida.
+    [HarmonyPatch(typeof(Registry), nameof(Registry.AddToRegistry))]
+    private static class AddToRegistryPatch
+    {
+        private static void Postfix(ItemDefinition item) => I.Guard("AddToRegistry", () => I.ApplyTo(item));
     }
 
     // ponytail: aplicado quando a estação nasce; mudar a config vale para estações carregadas depois.
