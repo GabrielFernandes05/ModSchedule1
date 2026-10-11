@@ -1,6 +1,7 @@
 using System;
 using UnityEngine;
 using UnityEngine.UI;
+using Object = UnityEngine.Object;
 
 namespace ModSchedule1.PhoneUI;
 
@@ -49,6 +50,32 @@ public static class Ui
             if (found != null) return found;
         }
         return null;
+    }
+
+    public static string Money(float value) => "$" + value.ToString("N0", System.Globalization.CultureInfo.InvariantCulture);
+
+    public static void Clear(Transform parent)
+    {
+        for (int i = parent.childCount - 1; i >= 0; i--)
+        {
+            var child = parent.GetChild(i).gameObject;
+            child.SetActive(false);   // some do layout já neste frame; Destroy só no fim do frame
+            Object.Destroy(child);
+        }
+    }
+
+    /// <summary>Linha de "card": fundo levemente mais claro com layout vertical para várias linhas de texto/botões.</summary>
+    public static GameObject Card(Transform parent)
+    {
+        var go = Child("Card", parent);
+        go.AddComponent<Image>().color = new Color(1f, 1f, 1f, 0.05f);
+        var v = go.AddComponent<VerticalLayoutGroup>();
+        v.spacing = 4;
+        v.padding = new RectOffset(14, 14, 10, 10);
+        v.childControlWidth = v.childControlHeight = true;
+        v.childForceExpandWidth = true;
+        v.childForceExpandHeight = false;
+        return go;
     }
 
     public static Sprite SolidSprite(Color color)

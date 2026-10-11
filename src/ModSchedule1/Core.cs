@@ -76,6 +76,7 @@ public sealed class Core : MelonMod
     public override void OnUpdate()
     {
         EndOfDay.Restore();   // rede de segurança: o relógio nunca fica preso em 3:59 entre frames
+        PhoneApp.TickOpenApps();
         foreach (var f in Features)
         {
             if (!f.Active) continue;

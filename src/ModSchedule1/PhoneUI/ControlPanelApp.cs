@@ -10,6 +10,7 @@ public sealed class ControlPanelApp : PhoneApp
 {
     public override string AppName => "ModSchedule1Panel";
     public override string IconLabel => "Mods";
+    public override string IconGlyph => "M";
 
     private static readonly Color On = new(0.18f, 0.6f, 0.3f), Off = new(0.35f, 0.35f, 0.38f), Err = new(0.7f, 0.2f, 0.2f);
     private readonly List<System.Action> _refreshers = new();
@@ -17,18 +18,7 @@ public sealed class ControlPanelApp : PhoneApp
     protected override void BuildUI(GameObject container)
     {
         _refreshers.Clear();
-        var header = Ui.Child("Header", container.transform);
-        var hrt = header.GetComponent<RectTransform>();
-        hrt.anchorMin = new Vector2(0, 1);
-        hrt.anchorMax = new Vector2(1, 1);
-        hrt.pivot = new Vector2(0.5f, 1);
-        hrt.sizeDelta = new Vector2(0, 60);
-        hrt.anchoredPosition = Vector2.zero;
-        var title = Ui.Text(header.transform, $"  ModSchedule1 v{Core.Version}", 26, bold: true);
-        var trt = title.GetComponent<RectTransform>();
-        trt.anchorMin = Vector2.zero; trt.anchorMax = Vector2.one; trt.offsetMin = trt.offsetMax = Vector2.zero;
-
-        var list = Ui.ScrollList(container.transform, topMargin: 64);
+        var list = Header(container, $"ModSchedule1 v{Core.Version}", out _);
 
         foreach (var feature in Core.Features)
         {
