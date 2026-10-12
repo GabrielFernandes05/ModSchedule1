@@ -1,5 +1,5 @@
 {
-  "version": "0.12.1",
+  "version": "0.12.2",
   "features": [
     {
       "id": "BetterStacks",
@@ -138,6 +138,12 @@
       "name": "Clientes em potencial",
       "default": true,
       "description": "Bola rosa sobre a cabeça dos NPCs que já podem virar clientes (aceitam amostra)."
+    },
+    {
+      "id": "SupplierDebt",
+      "name": "Fornecedores: pagar dívida",
+      "default": false,
+      "description": "Paga sozinho a dívida com os fornecedores (sementes, pseudo...), sem ir ao esconderijo."
     }
   ]
 }

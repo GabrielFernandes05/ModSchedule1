@@ -49,6 +49,7 @@ A primeira abertura do jogo demora alguns minutos, porque o MelonLoader gera os 
 | Robbery | Na tela da loja: **Assaltar o caixa** ($350–750, 1x por dia por loja; armado sempre dá certo) e **Furtar o carrinho** (chance de ser visto). O caixa chama a polícia | do host |
 | Acelerar o tempo | **F6** liga/desliga o relógio acelerado (10x, configurável). Tudo passa minuto a minuto como no normal; para sozinho às 4:00 (hora de dormir) | só host |
 | Clientes em potencial | Bola rosa sobre a cabeça de quem já pode virar cliente (mesma regra do marcador do mapa: conhece um cliente seu e a região está liberada) | pessoal |
+| Fornecedores: pagar dívida | Desligado por padrão. Paga a dívida com Albert, Shirley, Salvador etc. pelo banco (ou dinheiro em mãos): deposita no esconderijo à distância e o jogo abate como se você tivesse ido lá | pessoal |
 
 **Configurações:** botão **Mods** no menu do jogo (principal ou pausa), logo abaixo de Settings; também em Configurações → aba Mods. Clique no nome de um mod para ver as opções. Tudo fica salvo em `UserData/ModSchedule1.cfg`.
 
