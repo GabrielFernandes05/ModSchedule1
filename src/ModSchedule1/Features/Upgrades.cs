@@ -12,8 +12,9 @@ using UnityEngine.SceneManagement;
 namespace ModSchedule1.Features;
 
 /// <summary>
-/// Melhorias compradas no app Finanças: crescimento (plantas e cogumelos) e lavagem mais rápidos. Nada acelera sem
-/// comprar. Níveis ficam por save (chave = semente do mundo, a mesma no host e nos clientes) em
+/// Melhorias compradas no app Finanças: crescimento (plantas e cogumelos), lavagem e cada mesa (forno, mixer, química,
+/// caldeirão, secador, embalagem dos funcionários). Nada acelera sem comprar; nas mesas a melhoria multiplica a
+/// velocidade da config do Station Speed. Níveis ficam por save (chave = semente do mundo, a mesma no host e nos clientes) em
 /// UserData/ModSchedule1/upgrades.json no host, que os publica no lobby. Crescimento e lavagem rodam em TODOS os PCs,
 /// então o efeito também: todos usam o nível do host. Só o host compra (paga pelo banco).
 /// </summary>
@@ -21,21 +22,35 @@ public sealed class Upgrades : Feature<Upgrades>
 {
     public override string Id => "Upgrades";
     public override string Name => "Melhorias";
-    public override string Description => "Compre no app Finanças: plantas/cogumelos crescem mais rápido e a lavagem termina antes.";
+    public override string Description => "Compre no app Finanças: crescimento, lavagem e cada mesa (forno, mixer, química...) mais rápidos.";
 
     public sealed class Track
     {
-        public readonly string Name;
+        public readonly string Id, Name, What;
         public readonly float[] Mult;
         public readonly int[] Price;   // Price[n] = preço para chegar ao nível n
-        public Track(string name, float[] mult, int[] price) { Name = name; Mult = mult; Price = price; }
+        public Track(string id, string name, string what, float[] mult, int[] price) { Id = id; Name = name; What = what; Mult = mult; Price = price; }
         public int Max => Mult.Length - 1;
     }
 
-    public static readonly Track Growth = new("Crescimento", new[] { 1f, 1.25f, 1.5f, 2f }, new[] { 0, 15000, 40000, 90000 });
-    public static readonly Track Laundering = new("Lavagem", new[] { 1f, 1.5f, 2f, 3f }, new[] { 0, 10000, 30000, 75000 });
+    private static readonly float[] StationMult = { 1f, 1.5f, 2f, 3f };
+    private static readonly int[] StationPrice = { 0, 8000, 20000, 50000 };
+    public static readonly Track Growth = new("Growth", "Crescimento", "Plantas e cogumelos crescem", new[] { 1f, 1.25f, 1.5f, 2f }, new[] { 0, 15000, 40000, 90000 });
+    public static readonly Track Laundering = new("Laundering", "Lavagem", "A lavagem termina", new[] { 1f, 1.5f, 2f, 3f }, new[] { 0, 10000, 30000, 75000 });
+    public static readonly Track Oven = new("Oven", "Forno", "O forno cozinha", StationMult, StationPrice);
+    public static readonly Track Mixing = new("Mixing", "Mixer", "O mixer mistura", StationMult, StationPrice);
+    public static readonly Track Chemistry = new("Chemistry", "Estação de química", "A química cozinha", StationMult, StationPrice);
+    public static readonly Track Cauldron = new("Cauldron", "Caldeirão", "O caldeirão cozinha", StationMult, StationPrice);
+    public static readonly Track Drying = new("Drying", "Secador", "O secador seca", StationMult, StationPrice);
+    public static readonly Track Packaging = new("Packaging", "Embalagem", "Funcionários embalam", StationMult, StationPrice);
+    public static readonly Track[] All = { Growth, Laundering, Oven, Mixing, Chemistry, Cauldron, Drying, Packaging };
 
-    public sealed class Levels { public int Growth; public int Laundering; }
+    /// <summary>Níveis de um save. Growth/Laundering são do formato da 0.13.0 (migrados para Tracks ao carregar).</summary>
+    public sealed class Levels
+    {
+        public int Growth, Laundering;
+        public Dictionary<string, int> Tracks = new();
+    }
 
     private const string LobbyKey = "ms1upg";
     private Pref<float> _priceMult = null!;
@@ -51,7 +66,7 @@ public sealed class Upgrades : Feature<Upgrades>
         _saved = Store.Load<Dictionary<string, Levels>>("upgrades");
     }
 
-    public int Level(Track t) => Math.Clamp(t == Growth ? _current.Growth : _current.Laundering, 0, t.Max);
+    public int Level(Track t) => Math.Clamp(_current.Tracks.TryGetValue(t.Id, out int l) ? l : 0, 0, t.Max);
     public float Multiplier(Track t) => Active ? t.Mult[Level(t)] : 1f;
     public int NextPrice(Track t) => Level(t) >= t.Max ? -1 : (int)Math.Round(t.Price[Level(t) + 1] * _priceMult.Value);
     public static bool CanBuy => Net.IsHost && SceneManager.GetActiveScene().name == "Main";
@@ -61,8 +76,9 @@ public sealed class Upgrades : Feature<Upgrades>
         int price = NextPrice(t);
         if (!Active || !CanBuy || price < 0 || Bank.Online < price) return false;
         MoneyManager.Instance.CreateOnlineTransaction($"Melhoria: {t.Name} nível {Level(t) + 1}", -price, 1f, "ModSchedule1");
-        if (t == Growth) _current.Growth++; else _current.Laundering++;
+        _current.Tracks[t.Id] = Level(t) + 1;
         _saved[GameManager.Seed.ToString()] = _current;
+        Changed();
         Store.Save("upgrades", _saved);
         Log.Info($"melhoria comprada: {t.Name} nível {Level(t)} (x{t.Mult[Level(t)]}) por {Ui.Money(price)}");
         return true;
@@ -81,21 +97,52 @@ public sealed class Upgrades : Feature<Upgrades>
             {
                 _loadedSeed = seed;
                 _current = _saved.TryGetValue(seed.ToString(), out var lv) ? lv : new Levels();
-                Log.Info($"melhorias deste save: crescimento {_current.Growth}, lavagem {_current.Laundering}");
+                if (_current.Growth > 0) { _current.Tracks[Growth.Id] = _current.Growth; _current.Growth = 0; }
+                if (_current.Laundering > 0) { _current.Tracks[Laundering.Id] = _current.Laundering; _current.Laundering = 0; }
+                Log.Info($"melhorias deste save: {Describe(_current)}");
+                Changed();
             }
-            string payload = $"{_current.Growth}:{_current.Laundering}";
+            string payload = Serialize(_current);
             if (Net.InLobby && payload != _published) { Net.SetLobbyData(LobbyKey, payload); _published = payload; }
         }
         else if (Net.InLobby && !Net.IsLobbyOwner)
         {
-            var parts = (Net.GetLobbyData(LobbyKey) ?? "").Split(':');
-            if (parts.Length == 2 && int.TryParse(parts[0], out int g) && int.TryParse(parts[1], out int l)
-                && (g != _current.Growth || l != _current.Laundering))
+            var payload = Net.GetLobbyData(LobbyKey) ?? "";
+            if (payload != Serialize(_current))
             {
-                _current = new Levels { Growth = g, Laundering = l };
-                Log.Info($"melhorias do host: crescimento {g}, lavagem {l}");
+                _current = Parse(payload);
+                Log.Info($"melhorias do host: {Describe(_current)}");
+                Changed();
             }
         }
+    }
+
+    // "Growth=1;Oven=2" (só níveis > 0, em ordem fixa: o texto serve para comparar)
+    private static string Serialize(Levels l)
+    {
+        var parts = new List<string>();
+        foreach (var t in All)
+            if (l.Tracks.TryGetValue(t.Id, out int v) && v > 0) parts.Add($"{t.Id}={v}");
+        return string.Join(";", parts);
+    }
+
+    private static Levels Parse(string payload)
+    {
+        var l = new Levels();
+        foreach (var part in payload.Split(';'))
+        {
+            var kv = part.Split('=');
+            if (kv.Length == 2 && int.TryParse(kv[1], out int v) && v > 0) l.Tracks[kv[0]] = v;
+        }
+        return l;
+    }
+
+    private static string Describe(Levels l) => l.Tracks.Count == 0 ? "nenhuma" : Serialize(l).Replace(";", ", ");
+
+    /// <summary>Mesas que leem a velocidade só ao serem criadas recebem o valor novo na hora.</summary>
+    private static void Changed()
+    {
+        try { StationSpeed.I.Reapply(); } catch (Exception e) { Core.Log.Error($"melhorias nas mesas: {e.Message}"); }
     }
 
     // Planta: o crescimento do minuto (com luz, temperatura, água) é multiplicado. Vale também ao dormir

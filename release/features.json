@@ -1,5 +1,5 @@
 {
-  "version": "0.13.1",
+  "version": "0.14.0",
   "features": [
     {
       "id": "BetterStacks",
@@ -143,7 +143,7 @@
       "id": "SupplierDebt",
       "name": "Fornecedores: pagar dívida",
       "default": false,
-      "description": "Paga sozinho a dívida com os fornecedores (sementes, pseudo...), sem ir ao esconderijo."
+      "description": "Liga o pagamento automático da dívida com os fornecedores. Pagar na hora: app Finanças > Fornecedores."
     },
     {
       "id": "FastDeliveries",
@@ -155,7 +155,7 @@
       "id": "Upgrades",
       "name": "Melhorias",
       "default": true,
-      "description": "Compre no app Finanças: plantas/cogumelos crescem mais rápido e a lavagem termina antes."
+      "description": "Compre no app Finanças: crescimento, lavagem e cada mesa (forno, mixer, química...) mais rápidos."
     },
     {
       "id": "DealerTexts",
@@ -167,7 +167,7 @@
       "id": "HudInfo",
       "name": "Relógio e XP na tela",
       "default": true,
-      "description": "Hora, dia e barra de XP do rank sempre visíveis no canto da tela."
+      "description": "Hora, dia e barra de XP do rank sempre visíveis, logo abaixo da bússola."
     }
   ]
 }

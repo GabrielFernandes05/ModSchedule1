@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using HarmonyLib;
 using Il2CppScheduleOne.Trash;
 using MelonLoader;
 using UnityEngine;
@@ -33,33 +32,27 @@ public sealed class NoMoreTrash : Feature<NoMoreTrash>
         return false;
     }
 
-    // Destrói no frame seguinte: quem criou o lixo ainda mexe nele (velocidade, GUID) logo após o retorno.
+    // Varre a lista de lixo do jogo no host. Hook na criação não basta: lixo criado por OUTRO jogador chega por RPC e o
+    // jogo cria pelo mesmo método, mas chamado direto do código compilado (inlinado), e o patch não vê.
+    // Varrer também pega lixo de NPC, do gerador e do save. Destruir no host sincroniza com todos (DestroyTrash é RPC).
+    private float _next;
+
     public override void OnUpdate()
     {
-        if (_pending.Count == 0) return;
+        if (Time.unscaledTime < _next || !TrashManager.InstanceExists) return;
+        _next = Time.unscaledTime + 0.25f;
+        var list = TrashManager.Instance._trashItems;
+        _pending.Clear();
+        for (int i = 0; i < list.Count; i++)
+        {
+            var trash = list[i];
+            if (trash != null && !ShouldKeep(trash.ID)) _pending.Add(trash);
+        }
         foreach (var trash in _pending)
         {
-            if (trash == null) continue;   // já destruído/coletado
             Log.Debug($"removido: {trash.ID}");
             trash.DestroyTrash();
         }
         _pending.Clear();
-    }
-
-    public override void OnSceneLoaded(string scene) => _pending.Clear();
-
-    // CreateTrashItemInternal roda para todo lixo criado (NPC, jogador, gerador, save carregado). TrashItem.Start não existe mais no 0.4.7.
-    [HarmonyPatch(typeof(TrashManager), nameof(TrashManager.CreateTrashItemInternal))]
-    private static class CreateTrashPatch
-    {
-        private static void Postfix(TrashItem __result)
-        {
-            I.Guard("CreateTrashItemInternal", () =>
-            {
-                if (__result == null) return;
-                if (I.ShouldKeep(__result.ID)) { I.Log.Debug($"mantido: {__result.ID}"); return; }
-                I._pending.Add(__result);
-            });
-        }
     }
 }
