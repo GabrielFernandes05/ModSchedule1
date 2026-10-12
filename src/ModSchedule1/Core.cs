@@ -13,7 +13,7 @@ namespace ModSchedule1;
 
 public sealed class Core : MelonMod
 {
-    public const string Version = "0.14.0";
+    public const string Version = "0.14.1";
 
     /// <summary>Every feature of the megamod. Adding a mod = adding a line here (and in release/features.json).</summary>
     public static readonly List<Feature> Features = new()
@@ -114,6 +114,7 @@ public sealed class Core : MelonMod
     {
         EndOfDay.Restore();   // rede de segurança: o relógio nunca fica preso em 3:59 entre frames
         PhoneApp.TickOpenApps();
+        try { PhoneApp.PollPhoneButton(); } catch (Exception e) { Log.Debug($"botão do celular: {e.Message}"); }
         ModsSettingsTab.Tick();
         ConfigSync.Tick();
         foreach (var f in Features)

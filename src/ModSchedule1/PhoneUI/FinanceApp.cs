@@ -1,8 +1,11 @@
 using System;
 using System.Collections.Generic;
+using Il2CppInterop.Runtime;
 using Il2CppScheduleOne.Economy;
+using Il2CppScheduleOne.ItemFramework;
 using Il2CppScheduleOne.Money;
 using Il2CppScheduleOne.Property;
+using Il2CppScheduleOne.UI;
 using ModSchedule1.Features;
 using UnityEngine;
 using UnityEngine.UI;
@@ -368,6 +371,7 @@ public sealed class FinanceApp : PhoneApp
                 var row = Ui.Row(card.transform, 46);
                 var info = Ui.Text(row.transform, "", 18);
                 info.supportRichText = true;
+                Ui.Button(row.transform, "Inventário", default, () => Dealers.I.Guard("inventário do dealer", () => OpenInventory(d)), width: 150, height: 40);
                 var (collect, _, _) = Ui.Button(row.transform, "Coletar", Accent(), () => Dealers.I.Guard("coletar", () => { Dealers.I.Collect(d); OnTick(); }), width: 150, height: 40);
                 _dealerRows.Add((d, info, collect));
             }
@@ -376,11 +380,37 @@ public sealed class FinanceApp : PhoneApp
         {
             if (d == null) continue;
             bool pending = Dealers.I.Pending(d);
-            info.text = $"<b>{d.FullName}</b>      {Ui.Money(d.Cash)}{(pending ? "  (coletando...)" : "")}";
+            info.text = $"<b>{d.FullName}</b>      {Ui.Money(d.Cash)}{(pending ? "  (coletando...)" : "")}      <size=14>{d.GetPackagedProductAmount()} un. de produto</size>";
             collect.interactable = d.Cash > 0 && !pending;
         }
         float held = Dealers.I.TotalHeld();
         _collectAllLabel.text = held > 0 ? $"Coletar de todos ({Ui.Money(held)})" : "Nada para coletar";
+    }
+
+    /// <summary>
+    /// Mesmo menu do "I need to trade some items" em pessoa (StorageMenu no inventário do dealer), aberto à distância:
+    /// o menu não checa distância e as mudanças nos slots do NPC são RPCs, então valem no multiplayer. Fecha o app e o
+    /// celular antes, como no fluxo em pessoa (evita o ESC fechar o celular por baixo do menu).
+    /// </summary>
+    private void OpenInventory(Dealer d)
+    {
+        if (d == null || d.Inventory == null || !StorageMenu.InstanceExists || StorageMenu.Instance.IsOpen) return;
+        Close("inventário do dealer");
+        if (GameplayMenu.InstanceExists && GameplayMenu.Instance.IsOpen) GameplayMenu.Instance.Close();
+        // Como em pessoa (Dealer.TradeItems): o dealer para enquanto o menu está aberto. Sem isso ele pode entregar uma
+        // venda tirando itens dos mesmos slots que você está mexendo, e o produto duplica.
+        var talk = d.Behaviour != null ? d.Behaviour.GenericDialogueBehaviour : null;
+        if (talk != null) talk.Enable_Server();
+        StorageMenu.Instance.Open(new IItemSlotOwner(d.Inventory.Pointer), $"Inventário de {d.FullName}",
+            "Coloque <color=#4CB0FF>produto embalado</color> aqui: o dealer vende para os clientes dele.",
+            DelegateSupport.ConvertDelegate<Il2CppSystem.Action>(new Action(() =>
+            {
+                if (d == null) return;
+                if (talk != null) talk.Disable_Server();
+                // sobras do inventário só no host: num cliente a baixa na sobra é local e o item duplicaria
+                if (Net.IsHost) d.TryMoveOverflowItems();
+            })));
+        Dealers.I.Log.Info($"inventário de {d.FullName} aberto pelo app");
     }
 
     private void TickUpgrades()

@@ -8,6 +8,7 @@ using Il2CppScheduleOne.Equipping;
 using Il2CppScheduleOne.ItemFramework;
 using Il2CppScheduleOne.ObjectScripts;
 using Il2CppScheduleOne.PlayerScripts;
+using Il2CppScheduleOne.UI.Items;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -56,7 +57,7 @@ public sealed class BetterStacks : Feature<BetterStacks>
         _mixCapacity = Setting("MixingStationCapacity", 2, "Mixer: capacidade x", min: 1, max: 50);
         _ammo = Setting("Mult_Ammo", 5, "Pilha x: Munição (pentes)", "Pentes/cartuchos por pilha (1 = como no jogo)", min: 1, max: 50);
 
-        Enabled.Changed += () => Apply();
+        Enabled.Changed += () => { Apply(); RefreshAmmoLabels(); };
         _ammo.Changed += () => Apply();
         foreach (var m in _multipliers.Values) m.Changed += () => Apply();
     }
@@ -153,12 +154,17 @@ public sealed class BetterStacks : Feature<BetterStacks>
     private void SplitForReload(PlayerInventory inv, string id)
     {
         var slots = inv.hotbarSlots;
-        ItemSlot? first = null, free = null, sameStack = null;
+        ItemSlot? first = null, free = null, freeBefore = null, sameStack = null;
         for (int i = 0; i < slots.Count; i++)
         {
             var slot = slots[i];
             if (slot == null) continue;
-            if (slot.ItemInstance == null) { if (free == null && !slot.IsLocked && !slot.IsAddLocked) free = slot; continue; }
+            if (slot.ItemInstance == null)
+            {
+                if (slot.IsLocked || slot.IsAddLocked) continue;
+                if (first == null) freeBefore ??= slot; else free ??= slot;   // a recarga pega o primeiro slot com o pente
+                continue;
+            }
             if (slot.ItemInstance.ID != id) continue;
             if (first == null) { first = slot; continue; }
             var other = slot.ItemInstance.TryCast<IntegerItemInstance>();
@@ -167,15 +173,22 @@ public sealed class BetterStacks : Feature<BetterStacks>
         }
         if (first == null || first.Quantity <= 1) return;
         int rest = first.Quantity - 1;
-        var restItem = first.ItemInstance.GetCopy(rest);
-        if (sameStack != null && sameStack.GetCapacityForItem(restItem) >= rest) sameStack.ChangeQuantity(rest);
-        else if (free != null) free.SetStoredItem(restItem);
+        var single = first.ItemInstance;   // a recarga em andamento referencia este objeto: ele tem que virar o pente único
+        var restItem = single.GetCopy(rest);
+        if (sameStack != null && sameStack.GetCapacityForItem(restItem) >= rest) { sameStack.ChangeQuantity(rest); first.SetQuantity(1); }
+        else if (free != null) { free.SetStoredItem(restItem); first.SetQuantity(1); }
+        else if (freeBefore != null)
+        {
+            // só há espaço antes da pilha: o pente único vai para lá (vira o primeiro) e o resto fica onde estava
+            first.SetStoredItem(restItem);
+            single.SetQuantity(1);
+            freeBefore.SetStoredItem(single);
+        }
         else
         {
             if (!_warnedFull) { _warnedFull = true; Log.Warn("barra cheia: recarga direto da pilha de pentes (o jogo pode descontar balas da pilha toda)"); }
             return;
         }
-        first.SetQuantity(1);
         Log.Debug($"recarga: 1 pente de {id} separado da pilha ({rest} ficaram no outro slot)");
     }
 
@@ -215,6 +228,94 @@ public sealed class BetterStacks : Feature<BetterStacks>
             var a = __instance.TryCast<IntegerItemInstance>();
             var b = other.TryCast<IntegerItemInstance>();
             if (a != null && b != null && a.Value != b.Value) __result = false;
+        }
+    }
+
+    // ---------- exibição da munição ----------
+    // O slot do jogo mostra o valor do item ("7") e a quantidade ("2x") um por cima do outro. Para munição mostramos
+    // o total de balas (14) e escondemos o "Nx"; o scroll continua dividindo por pente (a pilha é por quantidade).
+
+    private bool IsAmmo(IntegerItemInstance? inst) => inst != null && Enabled.Value && !Faulted && _ammoRounds.ContainsKey(inst.ID);
+
+    /// <summary>Redesenha os slots de munição na tela (o jogo só redesenha quando o item muda).</summary>
+    private void RefreshAmmoLabels()
+    {
+        try
+        {
+            foreach (var ui in UnityEngine.Object.FindObjectsOfType<IntegerItemUI>())
+                if (ui != null && ui.integerItemInstance != null && _ammoRounds.ContainsKey(ui.integerItemInstance.ID)) ui.UpdateUI();
+        }
+        catch (Exception e) { Log.Debug($"redesenhar munição: {e.Message}"); }
+    }
+
+    // Todo desenho de item num slot (inventário, barra, baús, estações, cópia arrastada) passa por aqui (virtual).
+    // Usa o argumento: durante a divisão o jogo passa o que fica no slot de origem ou o que está sendo arrastado.
+    [HarmonyPatch(typeof(ItemUI), nameof(ItemUI.SetDisplayedQuantity))]
+    private static class AmmoLabelPatch
+    {
+        private static void Postfix(ItemUI __instance, int quantity)
+        {
+            if (quantity <= 0) return;
+            var ui = __instance.TryCast<IntegerItemUI>();
+            if (ui == null || ui.ValueLabel == null || !I.IsAmmo(ui.integerItemInstance)) return;
+            ui.ValueLabel.text = (ui.integerItemInstance.Value * quantity).ToString();
+            if (__instance.QuantityLabel != null) __instance.QuantityLabel.text = string.Empty;
+        }
+    }
+
+    private static int _lastDragAmount = -1;
+    private static string? _valuePath;
+    private static bool _valuePathLogged;
+
+    /// <summary>Caminho "a/b/c" de <paramref name="target"/> a partir de <paramref name="root"/>; null se não for filho.</summary>
+    private static string? RelativePath(Transform root, Transform target)
+    {
+        var names = new List<string>();
+        for (var t = target; t != null; t = t.parent)
+        {
+            if (t == root) { names.Reverse(); return string.Join("/", names); }
+            names.Add(t.name);
+        }
+        return null;
+    }
+
+    // Divisão com o scroll: o jogo reescreve "Nx" no ícone arrastado (SetDraggedAmount pode estar inlinado no Update,
+    // então corrigimos no LateUpdate, depois dele e antes de desenhar).
+    [HarmonyPatch(typeof(ItemUIManager), nameof(ItemUIManager.LateUpdate))]
+    private static class AmmoDragPatch
+    {
+        private static void Postfix(ItemUIManager __instance)
+        {
+            if (__instance.draggedSlot == null || __instance.tempIcon == null || !__instance.customDragAmount) { _lastDragAmount = -1; return; }
+            int amount = __instance.draggedAmount;
+            if (amount == _lastDragAmount) return;
+            var ui = __instance.draggedSlot.ItemUI != null ? __instance.draggedSlot.ItemUI.TryCast<IntegerItemUI>() : null;
+            if (ui == null || ui.ValueLabel == null || ui.IconImg == null || !I.IsAmmo(ui.integerItemInstance)) return;
+            _lastDragAmount = amount;
+            _valuePath ??= RelativePath(ui.IconImg.transform, ui.ValueLabel.transform);
+            if (!_valuePathLogged)
+            {
+                _valuePathLogged = true;
+                I.Log.Debug(_valuePath == null ? "rótulo de balas fora do ícone: a cópia arrastada mantém o \"Nx\"" : $"rótulo de balas no ícone: '{_valuePath}'");
+            }
+            if (string.IsNullOrEmpty(_valuePath)) return;   // sem o rótulo de balas na cópia: deixa o "Nx" para o jogador ver quanto divide
+            var label = __instance.tempIcon.Find(_valuePath)?.GetComponent<UnityEngine.UI.Text>();
+            if (label == null) return;
+            label.text = (ui.integerItemInstance.Value * amount).ToString();
+            var quantity = __instance.tempIcon.Find("Quantity");
+            if (quantity != null) quantity.gameObject.SetActive(false);
+        }
+    }
+
+    // A dica do item mostra só nome/descrição: com o "Nx" escondido, dizemos quantos pentes formam o total.
+    [HarmonyPatch(typeof(ItemInfoContent), nameof(ItemInfoContent.Initialize), new[] { typeof(ItemInstance) })]
+    private static class AmmoInfoPatch
+    {
+        private static void Postfix(ItemInfoContent __instance, ItemInstance instance)
+        {
+            var ammo = instance?.TryCast<IntegerItemInstance>();
+            if (!I.IsAmmo(ammo) || ammo!.Quantity <= 1 || __instance.DescriptionLabel == null) return;
+            __instance.DescriptionLabel.text += $"\n<b>{ammo.Quantity} x {ammo.Value} balas</b> ({ammo.Quantity * ammo.Value} no total). Scroll divide por pente.";
         }
     }
 

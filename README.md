@@ -42,7 +42,7 @@ A primeira abertura do jogo demora alguns minutos, porque o MelonLoader gera os 
 | Dealers+ | Coletar dinheiro no app de dealers do jogo | pessoal |
 | Recipe List | Receita completa no app de produtos do jogo | pessoal |
 | DeliveryApp++ | Favoritos e pedidos recorrentes no app Delivery do jogo | pessoal |
-| Bank + Laundry | App **Finanças** no celular, em abas: Banco, Lavagem, Fornecedores (pagar dívida na hora), Dealers (coletar de cada um ou de todos), Melhorias e Histórico | pessoal |
+| Bank + Laundry | App **Finanças** no celular, em abas: Banco, Lavagem, Fornecedores (pagar dívida na hora), Dealers (coletar, ver estoque e abrir o inventário do dealer à distância), Melhorias e Histórico | pessoal |
 | More Guns | Submetralhadora, pistola de pente estendido, Magnum e escopeta automática no Stan (visual das armas do jogo) | do host |
 | More Clothing | Peças que só NPCs usavam (uniformes etc.) à venda na loja de roupas | do host |
 | Minimap | Minimapa redondo no canto da tela, com os ícones do mapa do celular; gira com a câmera. **F7** mostra/esconde (configurável) | pessoal |

@@ -140,14 +140,21 @@ internal static class ModsSettingsTab
         if (tabSelectable != null && screen.Tab != null) screen.Tab.AddSelectable(tabSelectable);
         if (bar.GetComponent<LayoutGroup>() == null) FitTabs(roots, tabGo.GetComponent<RectTransform>());
 
-        // painel: clone do painel que já tem rolagem (muitas linhas); senão, rolagem nossa
+        // painel: clone de um painel que já tem rolagem (muitas linhas); senão, rolagem nossa. Nunca o "Game" do lobby:
+        // ele traz um bloqueio "só o host configura" que fica ligado enquanto a partida não começou (nem para o dono).
         GameObject sourcePanel = cats[cats.Length - 1].Panel;
         for (int i = 0; i < cats.Length; i++)
-            if (cats[i].Panel.GetComponentInChildren<ScrollRect>(true) != null) { sourcePanel = cats[i].Panel; break; }
+            if (cats[i].Panel.GetComponentInChildren<ScrollRect>(true) != null
+                && cats[i].Panel.GetComponentInChildren<GameSettingsWindow>(true) == null) { sourcePanel = cats[i].Panel; break; }
         var panel = Object.Instantiate(sourcePanel, sourcePanel.transform.parent, false);
         panel.name = "MS1_ModsPanel";
+        foreach (var w in panel.GetComponentsInChildren<GameSettingsWindow>(true)) Object.DestroyImmediate(w);
         Transform content;
         var scroll = panel.GetComponentInChildren<ScrollRect>(true);
+        // fica só o caminho até a rolagem: bloqueios, botão Apply e afins do painel de origem saem
+        for (var t = scroll != null ? scroll.transform : null; t != null && t != panel.transform; t = t.parent)
+            for (int i = t.parent.childCount - 1; i >= 0; i--)
+                if (t.parent.GetChild(i) != t) Object.DestroyImmediate(t.parent.GetChild(i).gameObject);
         if (scroll != null && scroll.content != null) { content = scroll.content; Clear(content); }
         else { Clear(panel.transform); content = Ui.ScrollList(panel.transform, 0); }
         var uiPanel = panel.GetComponentInChildren<UIPanel>(true);

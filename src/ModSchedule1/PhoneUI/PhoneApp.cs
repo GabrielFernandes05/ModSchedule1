@@ -4,6 +4,7 @@ using HarmonyLib;
 using Il2CppInterop.Runtime;
 using Il2CppScheduleOne;
 using Il2CppScheduleOne.DevUtilities;
+using Il2CppScheduleOne.PlayerScripts;
 using Il2CppScheduleOne.UI;
 using Il2CppScheduleOne.UI.Phone;
 using UnityEngine;
@@ -94,7 +95,7 @@ public abstract class PhoneApp
         _container.SetActive(false);
 
         var phone = GamePhone.Instance;
-        phone.closeApps += new Action(Close);
+        phone.closeApps += new Action(() => Close("outro app"));
         GameInput.RegisterExitListener(
             DelegateSupport.ConvertDelegate<GameInput.ExitDelegate>(new Action<ExitAction>(OnExit)), 1);
 
@@ -159,7 +160,29 @@ public abstract class PhoneApp
         catch (Exception e) { Log.Error($"falha ao abrir {AppName}: {e}"); }
     }
 
-    public void Close()
+    /// <summary>
+    /// Botão físico do celular (colisor "Button" no modelo, camada Overlay). O jogo só o trata dentro de App&lt;T&gt;.Update
+    /// de cada app nativo aberto; nosso painel não é App&lt;T&gt;, então repetimos a mesma checagem. Todo frame: o clique
+    /// (GetButtonDown) só vale no frame em que acontece.
+    /// </summary>
+    public static void PollPhoneButton()
+    {
+        foreach (var app in All)
+        {
+            if (!app.IsOpen) continue;
+            if (!GamePhone.Instance.IsOpen || !GameInput.GetButtonDown(GameInput.ButtonCode.PrimaryClick) || !GameplayMenu.InstanceExists) return;
+            var cam = GameplayMenu.Instance.OverlayCamera;
+            if (cam == null) return;
+            if (Physics.Raycast(cam.ScreenPointToRay(GameInput.MousePosition), out var hit, 2f, 1 << LayerMask.NameToLayer("Overlay"))
+                && hit.collider != null && hit.collider.gameObject.name == "Button")
+                app.Close("botão do celular");
+            return;
+        }
+    }
+
+    public void Close() => Close("fechar");
+
+    public void Close(string reason)
     {
         if (!IsOpen) return;
         try
@@ -171,7 +194,8 @@ public abstract class PhoneApp
             _container!.SetActive(false);
             AppsCanvas.Instance.SetIsOpen(false);
             HomeScreen.Instance.SetIsOpen(true);
-            Log.Debug($"fechado: {AppName}");
+            if (CursorManager.InstanceExists) CursorManager.Instance.SetCursorAppearance(CursorManager.ECursorType.Default);
+            Log.Debug($"fechado: {AppName} ({reason})");
         }
         catch (Exception e) { Log.Error($"falha ao fechar {AppName}: {e}"); }
     }
@@ -179,9 +203,10 @@ public abstract class PhoneApp
     // ESC / botão direito: fecha o app e volta para a home do celular, como os apps nativos.
     private void OnExit(ExitAction exit)
     {
-        if (exit.Used || !IsOpen || !GamePhone.Instance.IsOpen) return;
+        // como o App.Exit nativo: com outra tela por cima (ex.: inventário do dealer), o ESC é dela
+        if (exit.Used || !IsOpen || !GamePhone.Instance.IsOpen || !GamePhone.Instance.State.IsAcceptingInput) return;
         exit.Used = true;
-        Close();
+        Close("ESC");
     }
 
     [HarmonyPatch(typeof(HomeScreen), "Start")]
