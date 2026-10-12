@@ -1,11 +1,11 @@
 {
-  "version": "0.12.3",
+  "version": "0.12.4",
   "features": [
     {
       "id": "BetterStacks",
       "name": "Better Stacks",
       "default": true,
-      "description": "Pilhas maiores por categoria; munição soma balas num item só (7 + 7 = 14); mixer com mais capacidade."
+      "description": "Pilhas maiores por categoria; pentes empilham por quantidade sem perder balas na recarga; mixer com mais capacidade."
     },
     {
       "id": "NoMoreTrash",

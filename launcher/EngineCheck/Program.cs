@@ -78,12 +78,6 @@ static class Check
 
         Directory.Delete(tmp, true);
 
-        // munição do Better Stacks: total de balas sempre preservado
-        static bool Same(int[] a, params int[] b) => string.Join(",", a) == string.Join(",", b);
-        Assert(Same(ModSchedule1.AmmoMerge.Merge(new[] { 7, 7 }, 35), 14, 0), "munição: 7 + 7 vira um item de 14");
-        Assert(Same(ModSchedule1.AmmoMerge.Merge(new[] { 0, 30, 0, 10 }, 35), 0, 35, 0, 5), "munição: enche até o limite, resto no próximo");
-        Assert(Same(ModSchedule1.AmmoMerge.Merge(new[] { 70, 7 }, 35), 70, 7), "munição: limite reduzido não perde balas");
-        Assert(Same(ModSchedule1.AmmoMerge.Merge(new[] { 3, 0, 4 }, 7), 7, 0, 0), "munição: parciais se completam");
         Console.WriteLine(failures == 0 ? "TUDO OK" : $"{failures} FALHA(S)");
         return failures == 0 ? 0 : 1;
     }

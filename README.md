@@ -27,7 +27,7 @@ A primeira abertura do jogo demora alguns minutos, porque o MelonLoader gera os 
 
 | Mod | O que faz | Config |
 |---|---|---|
-| Better Stacks | Pilhas maiores por categoria (armas, pentes, regador e roupas ficam com a pilha original: guardam balas/água/cor por item). Munição soma balas: pentes iguais na barra de atalhos viram um item só (7 + 7 = 14), até 5x as balas de um pente; mixer com mais capacidade | do host |
+| Better Stacks | Pilhas maiores por categoria (armas, regador e roupas ficam com a pilha original: guardam balas/água/cor por item). Pentes empilham por quantidade ("3x pente de 7", o scroll divide; 5x por padrão); pente parcial não empilha com cheio e a recarga separa um pente da pilha, então nenhuma bala some. Mixer com mais capacidade | do host |
 | No More Trash | Remove o lixo gerado no mundo (só host) | do host |
 | Warehouse Always Open | Warehouse aberto 24h (desbloqueio sem rank opcional) | do host |
 | Plants Always Grow | Plantas e cogumelos crescem depois das 4h | do host |

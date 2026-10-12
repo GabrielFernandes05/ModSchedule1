@@ -18,23 +18,25 @@ namespace ModSchedule1.Features;
 /// Itens com dado próprio por unidade (arma/pente = balas, regador = água, roupa = cor, pegador = lixo) NÃO empilham
 /// além do original: o jogo guarda um valor só para a pilha inteira e não compara esse dado ao empilhar, então
 /// "2x pente de 7" dividia as mesmas 7 balas e uma recarga parcial esvaziava os dois.
-/// Munição soma balas: pentes iguais na barra de atalhos viram um item só (7 + 7 = 14) até o limite configurado;
-/// a recarga do jogo já tira do item só as balas que faltam na arma.
+/// Exceção: munição (pente, tambor, cartucho) empilha por QUANTIDADE ("3x pente de 7", o scroll divide), com dois
+/// furos do jogo tapados: pente parcial não empilha com cheio (o valor da pilha é um só) e, durante a recarga, o pente
+/// que a arma vai consumir é separado da pilha (senão a recarga parcial tiraria balas de todos os pentes juntos).
 /// </summary>
 public sealed class BetterStacks : Feature<BetterStacks>
 {
     public override string Id => "BetterStacks";
     public override string Name => "Better Stacks";
-    public override string Description => "Pilhas maiores por categoria; munição soma balas num item só (7 + 7 = 14); mixer com mais capacidade.";
+    public override string Description => "Pilhas maiores por categoria; pentes empilham por quantidade sem perder balas na recarga; mixer com mais capacidade.";
 
     // Multiplicadores por nome de EItemCategory (string, para não quebrar se o jogo renomear categorias).
     private readonly Dictionary<string, Pref<int>> _multipliers = new();
     private Pref<int> _mixCapacity = null!, _ammo = null!;
+    private bool _warnedFull;
     // Valor original de cada definição (por ID): aplicar é sempre original x multiplicador, então ligar/desligar não acumula.
     private readonly Dictionary<string, int> _originals = new();
     private readonly Dictionary<string, bool> _perUnitData = new();   // ID -> instância guarda dado que a pilha compartilharia
     private readonly Dictionary<string, int> _ammoRounds = new();     // ID do pente/munição -> balas de um item novo
-    private float _nextMerge;
+    private float _nextConvert;
 
     protected override void OnInit()
     {
@@ -52,9 +54,10 @@ public sealed class BetterStacks : Feature<BetterStacks>
         Mult("Lighting", "Iluminação", 1);
         Mult("Decoration", "Decoração", 1);
         _mixCapacity = Setting("MixingStationCapacity", 2, "Mixer: capacidade x", min: 1, max: 50);
-        _ammo = Setting("AmmoPerSlot", 5, "Munição: balas por slot x", "Pentes iguais se juntam até N vezes as balas de um pente (1 = não junta)", min: 1, max: 50);
+        _ammo = Setting("Mult_Ammo", 5, "Pilha x: Munição (pentes)", "Pentes/cartuchos por pilha (1 = como no jogo)", min: 1, max: 50);
 
         Enabled.Changed += () => Apply();
+        _ammo.Changed += () => Apply();
         foreach (var m in _multipliers.Values) m.Changed += () => Apply();
     }
 
@@ -65,9 +68,17 @@ public sealed class BetterStacks : Feature<BetterStacks>
 
     public override void OnUpdate()
     {
-        if (Time.unscaledTime < _nextMerge) return;
-        _nextMerge = Time.unscaledTime + 1f;
-        if (_ammo.Value > 1 && SceneManager.GetActiveScene().name == "Main") MergeAmmo();
+        if (_ammoRounds.Count == 0 || SceneManager.GetActiveScene().name != "Main" || !PlayerInventory.InstanceExists) return;
+        var inv = PlayerInventory.Instance;
+        var weapon = inv.Equippable != null ? inv.Equippable.TryCast<Equippable_RangedWeapon>() : null;
+        if (weapon != null && weapon.IsReloading)
+        {
+            if (weapon.Magazine != null && _ammoRounds.ContainsKey(weapon.Magazine.ID)) SplitForReload(inv, weapon.Magazine.ID);
+            return;   // nada de converter itens durante a recarga
+        }
+        if (Time.unscaledTime < _nextConvert) return;
+        _nextConvert = Time.unscaledTime + 1f;
+        ConvertMerged(inv);
     }
 
     /// <summary>
@@ -93,8 +104,10 @@ public sealed class BetterStacks : Feature<BetterStacks>
         if (def == null) return false;
         if (!_originals.TryGetValue(def.ID, out int original))
             _originals[def.ID] = original = def.StackLimit;
-        bool stackable = original > 1 || !HasPerUnitData(def);   // o jogo já empilhava: ele sabe lidar
-        int target = Enabled.Value && !Faulted && stackable ? original * MultiplierFor(def.Category) : original;
+        bool ammo = _ammoRounds.ContainsKey(def.ID);
+        bool stackable = ammo || original > 1 || !HasPerUnitData(def);   // o jogo já empilhava: ele sabe lidar
+        int mult = ammo ? Math.Max(1, _ammo.Value) : MultiplierFor(def.Category);
+        int target = Enabled.Value && !Faulted && stackable ? original * mult : original;
         if (def.StackLimit == target) return false;
         Log.Debug($"{def.Name} ({def.Category}): pilha {def.StackLimit} -> {target}");
         def.StackLimit = target;
@@ -133,37 +146,75 @@ public sealed class BetterStacks : Feature<BetterStacks>
     }
 
     /// <summary>
-    /// Junta munição igual na barra de atalhos (é de lá que a recarga tira): pilhas antigas "2x de 7" viram um item
-    /// de 14 e itens separados enchem o primeiro até o limite. Só move balas entre itens (conta em AmmoMerge).
+    /// A recarga usa o PRIMEIRO slot da barra com o pente da arma. Se ele for uma pilha, deixamos nele só um pente
+    /// (o mesmo objeto, que a recarga em andamento referencia) e o resto vai para um slot livre ou para outra pilha
+    /// igual. Só acontece durante a recarga, então não mexe no inventário que o jogador arrumou.
     /// </summary>
-    private void MergeAmmo()
+    private void SplitForReload(PlayerInventory inv, string id)
     {
-        if (!PlayerInventory.InstanceExists || _ammoRounds.Count == 0) return;
-        var inv = PlayerInventory.Instance;
-        // recarga em andamento guarda referência ao item de munição: não mexer nele agora
-        if (inv.Equippable != null && inv.Equippable.TryCast<Equippable_RangedWeapon>() is { IsReloading: true }) return;
         var slots = inv.hotbarSlots;
-        foreach (var (id, rounds) in _ammoRounds)
+        ItemSlot? first = null, free = null, sameStack = null;
+        for (int i = 0; i < slots.Count; i++)
         {
-            var found = new List<(ItemSlot Slot, IntegerItemInstance Ammo)>();
-            var before = new List<int>();
-            for (int i = 0; i < slots.Count; i++)
+            var slot = slots[i];
+            if (slot == null) continue;
+            if (slot.ItemInstance == null) { if (free == null && !slot.IsLocked && !slot.IsAddLocked) free = slot; continue; }
+            if (slot.ItemInstance.ID != id) continue;
+            if (first == null) { first = slot; continue; }
+            var other = slot.ItemInstance.TryCast<IntegerItemInstance>();
+            var head = first.ItemInstance.TryCast<IntegerItemInstance>();
+            if (sameStack == null && other != null && head != null && other.Value == head.Value) sameStack = slot;
+        }
+        if (first == null || first.Quantity <= 1) return;
+        int rest = first.Quantity - 1;
+        var restItem = first.ItemInstance.GetCopy(rest);
+        if (sameStack != null && sameStack.GetCapacityForItem(restItem) >= rest) sameStack.ChangeQuantity(rest);
+        else if (free != null) free.SetStoredItem(restItem);
+        else
+        {
+            if (!_warnedFull) { _warnedFull = true; Log.Warn("barra cheia: recarga direto da pilha de pentes (o jogo pode descontar balas da pilha toda)"); }
+            return;
+        }
+        first.SetQuantity(1);
+        Log.Debug($"recarga: 1 pente de {id} separado da pilha ({rest} ficaram no outro slot)");
+    }
+
+    /// <summary>A 0.12.1 juntava balas num item só (ex.: 35): volta a ser pilha de pentes (5x7) quando couber.</summary>
+    private void ConvertMerged(PlayerInventory inv)
+    {
+        var slots = inv.hotbarSlots;
+        for (int i = 0; i < slots.Count; i++)
+        {
+            var ammo = slots[i]?.ItemInstance?.TryCast<IntegerItemInstance>();
+            if (ammo == null || ammo.Quantity != 1 || !_ammoRounds.TryGetValue(ammo.ID, out int full) || ammo.Value <= full) continue;
+            int mags = ammo.Value / full, rem = ammo.Value % full;
+            if (mags > ammo.StackLimit) continue;   // não cabe numa pilha: fica como está (funciona igual na recarga)
+            ItemSlot? free = null;
+            if (rem > 0)
             {
-                var ammo = slots[i]?.ItemInstance?.TryCast<IntegerItemInstance>();
-                if (ammo == null || ammo.ID != id || ammo.Value <= 0) continue;
-                found.Add((slots[i], ammo));
-                before.Add(ammo.Value * ammo.Quantity);   // pilha antiga: a quantidade dividia as mesmas balas
+                for (int j = 0; j < slots.Count && free == null; j++)
+                    if (slots[j] != null && slots[j].ItemInstance == null && !slots[j].IsLocked && !slots[j].IsAddLocked) free = slots[j];
+                if (free == null) continue;
+                var partial = ammo.GetCopy(1).TryCast<IntegerItemInstance>()!;
+                partial.Value = rem;
+                free.SetStoredItem(partial);
             }
-            if (found.Count == 0 || (found.Count == 1 && found[0].Ammo.Quantity == 1)) continue;
-            var after = AmmoMerge.Merge(before, Math.Min(60000, rounds * _ammo.Value));   // o jogo grava balas em 16 bits
-            for (int i = 0; i < found.Count; i++)
-            {
-                var (slot, ammo) = found[i];
-                if (after[i] == 0) { slot.ClearStoredInstance(); continue; }
-                if (ammo.Quantity > 1) slot.SetQuantity(1);
-                if (ammo.Value != after[i]) ammo.SetValue(after[i]);
-            }
-            Log.Debug($"munição {id}: [{string.Join(", ", before)}] -> [{string.Join(", ", after)}]");
+            Log.Info($"munição {ammo.ID}: item de {ammo.Value} balas virou {mags}x{full}{(rem > 0 ? $" + 1x{rem}" : "")}");
+            ammo.SetValue(full);
+            slots[i].SetQuantity(mags);
+        }
+    }
+
+    // Pente parcial não empilha com cheio: a pilha tem um valor só, então juntar 3 + 7 viraria 2x7 (ou 2x3).
+    [HarmonyPatch(typeof(ItemInstance), nameof(ItemInstance.CanStackWith))]
+    private static class AmmoStackPatch
+    {
+        private static void Postfix(ItemInstance __instance, ItemInstance other, ref bool __result)
+        {
+            if (!__result || other == null || !I._ammoRounds.ContainsKey(__instance.ID)) return;
+            var a = __instance.TryCast<IntegerItemInstance>();
+            var b = other.TryCast<IntegerItemInstance>();
+            if (a != null && b != null && a.Value != b.Value) __result = false;
         }
     }
 
