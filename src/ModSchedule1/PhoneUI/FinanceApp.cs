@@ -18,7 +18,8 @@ public sealed class FinanceApp : PhoneApp
 
     private Transform _list = null!;
     private Text _summary = null!, _selected = null!, _ledger = null!;
-    private GameObject _bankCard = null!, _dealersCard = null!;
+    private GameObject _bankCard = null!, _dealersCard = null!, _upgradesCard = null!;
+    private readonly List<(Upgrades.Track Track, Text Info, Text Label, Button Button)> _upgradeRows = new();
     private Text _dealers = null!, _collectAllLabel = null!;
 
     private static Color Accent() => Color.Lerp(Ui.Native.Card, Ui.Native.Accent, 0.35f);
@@ -53,6 +54,20 @@ public sealed class FinanceApp : PhoneApp
         var act = Ui.Row(_bankCard.transform, 46);
         Ui.Button(act.transform, "Depositar", Accent(), () => Bank.I.Guard("depositar", () => { if (Bank.I.Deposit(_amount)) _amount = 0; OnTick(); }), width: 200, height: 40);
         Ui.Button(act.transform, "Sacar", Accent(), () => Bank.I.Guard("sacar", () => { if (Bank.I.Withdraw(_amount)) _amount = 0; OnTick(); }), width: 200, height: 40);
+
+        // melhorias: compradas pelo host, pagas pelo banco; valem para todos
+        _upgradesCard = Ui.Card(_list);
+        Ui.Text(_upgradesCard.transform, "Melhorias", 20, bold: true);
+        _upgradeRows.Clear();
+        foreach (var track in new[] { Upgrades.Growth, Upgrades.Laundering })
+        {
+            var t = track;
+            var info = Ui.Text(_upgradesCard.transform, "", 16);
+            info.supportRichText = true;
+            var row = Ui.Row(_upgradesCard.transform, 44);
+            var (button, label, _) = Ui.Button(row.transform, "", Accent(), () => Upgrades.I.Guard("comprar melhoria", () => { Upgrades.I.Buy(t); OnTick(); }), width: 300, height: 38);
+            _upgradeRows.Add((t, info, label, button));
+        }
 
         // lavagem: um cartão por negócio (montado no OnTick, muda quando compra negócio)
         Ui.Text(_list, "Lavagem de dinheiro", 20, bold: true);
@@ -90,6 +105,18 @@ public sealed class FinanceApp : PhoneApp
 
         _laundry.gameObject.SetActive(laundry);
         if (laundry) TickLaundry();
+
+        _upgradesCard.SetActive(Upgrades.I.Active);
+        if (Upgrades.I.Active)
+            foreach (var (track, info, label, button) in _upgradeRows)
+            {
+                int level = Upgrades.I.Level(track), price = Upgrades.I.NextPrice(track);
+                string what = track == Upgrades.Growth ? "plantas e cogumelos crescem" : "a lavagem termina";
+                info.text = $"<b>{track.Name}</b>   nível {level}/{track.Max}   ({what} x{track.Mult[level]:0.##})";
+                label.text = price < 0 ? "Nível máximo" : !Upgrades.CanBuy ? "Só o host compra"
+                    : $"Comprar nível {level + 1} (x{track.Mult[level + 1]:0.##}) - {Ui.Money(price)}";
+                button.interactable = price >= 0 && Upgrades.CanBuy && Bank.Online >= price;
+            }
 
         _dealersCard.SetActive(Dealers.I.Active);
         if (Dealers.I.Active)

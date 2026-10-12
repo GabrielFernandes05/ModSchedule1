@@ -13,7 +13,7 @@ namespace ModSchedule1;
 
 public sealed class Core : MelonMod
 {
-    public const string Version = "0.12.4";
+    public const string Version = "0.13.0";
 
     /// <summary>Every feature of the megamod. Adding a mod = adding a line here (and in release/features.json).</summary>
     public static readonly List<Feature> Features = new()
@@ -42,6 +42,10 @@ public sealed class Core : MelonMod
         new TimeWarp(),
         new CustomerMarkers(),
         new SupplierDebt(),
+        new FastDeliveries(),
+        new Upgrades(),
+        new DealerTexts(),
+        new HudInfo(),
     };
 
     private static MelonPreferences_Entry<bool> _debug = null!;

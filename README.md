@@ -34,7 +34,7 @@ A primeira abertura do jogo demora alguns minutos, porque o MelonLoader gera os 
 | Employees Always Work | Funcionários trabalham depois das 4h (só host) | do host |
 | Absorbent Soil | Aditivos ficam no solo entre colheitas | do host |
 | Station Speed | Estações mais rápidas (multiplicador por tipo) | do host |
-| Better Employees | Trabalho/passo mais rápidos, salário ajustável, mais estações por funcionário | do host |
+| Better Employees | Trabalho/passo mais rápidos, salário ajustável, mais estações por funcionário; **salário pago sozinho pelo banco** (sem dinheiro no armário), **2x vagas por imóvel** e **10 rotas por handler**. Atenção: tirar o mod ou baixar as vagas faz o jogo descartar quem passar do limite | do host |
 | Employee Facilities | Funcionários dividem cama/armário | do host |
 | Ações rápidas | Pula as animações de terra, plantio, aditivos, rega, encher regador, colheita, cogumelos e das mesas: embalagem (embala tudo), mixer, química (sem explosão), caldeirão, forno e prensa | pessoal |
 | Compass Distances | Distância de todos os marcadores na bússola | pessoal |
@@ -42,7 +42,7 @@ A primeira abertura do jogo demora alguns minutos, porque o MelonLoader gera os 
 | Dealers+ | Coletar dinheiro no app de dealers do jogo | pessoal |
 | Recipe List | Receita completa no app de produtos do jogo | pessoal |
 | DeliveryApp++ | Favoritos e pedidos recorrentes no app Delivery do jogo | pessoal |
-| Bank + Laundry | App **Finanças** no celular: banco, lavagem, dealers e transações | pessoal |
+| Bank + Laundry | App **Finanças** no celular: banco, melhorias, lavagem, dealers e transações | pessoal |
 | More Guns | Submetralhadora, pistola de pente estendido, Magnum e escopeta automática no Stan (visual das armas do jogo) | do host |
 | More Clothing | Peças que só NPCs usavam (uniformes etc.) à venda na loja de roupas | do host |
 | Minimap | Minimapa redondo no canto da tela, com os ícones do mapa do celular; gira com a câmera. **F7** mostra/esconde (configurável) | pessoal |
@@ -50,6 +50,10 @@ A primeira abertura do jogo demora alguns minutos, porque o MelonLoader gera os 
 | Acelerar o tempo | **F6** liga/desliga o relógio acelerado (10x, configurável). Tudo passa minuto a minuto como no normal; para sozinho às 4:00 (hora de dormir) | só host |
 | Clientes em potencial | Bola rosa sobre a cabeça de quem já pode virar cliente (mesma regra do marcador do mapa: conhece um cliente seu e a região está liberada) | pessoal |
 | Fornecedores: pagar dívida | Desligado por padrão. Paga a dívida com Albert, Shirley, Salvador etc. pelo banco (ou dinheiro em mãos): deposita no esconderijo à distância e o jogo abate como se você tivesse ido lá | pessoal |
+| Entregas rápidas | Entregas das lojas (app Delivery) chegam na hora e o dead drop dos fornecedores em 1 minuto de jogo (pela chegada normal do jogo: doca livre, caminhão, mensagem) | só host |
+| Melhorias | Compradas no app Finanças (só o host, pelo banco): **Crescimento** até 2x (plantas e cogumelos) e **Lavagem** até 3x. Nada acelera sem comprar; ficam salvas por save | do host |
+| Dealers mandam mensagem | Cada venda ("vendi 2x OG Kush pra Fulano por $X"), aviso de produto acabando e resumo do dia à meia-noite, no app Messages | só host |
+| Relógio e XP na tela | Hora, dia e barra de XP do rank sempre visíveis (canto superior esquerdo, configurável) | pessoal |
 
 **Configurações:** botão **Mods** no menu do jogo (principal ou pausa), logo abaixo de Settings; também em Configurações → aba Mods. Clique no nome de um mod para ver as opções. Tudo fica salvo em `UserData/ModSchedule1.cfg`.
 

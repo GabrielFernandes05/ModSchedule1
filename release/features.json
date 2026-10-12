@@ -1,5 +1,5 @@
 {
-  "version": "0.12.4",
+  "version": "0.13.0",
   "features": [
     {
       "id": "BetterStacks",
@@ -53,7 +53,7 @@
       "id": "BetterEmployees",
       "name": "Better Employees",
       "default": true,
-      "description": "Trabalho e passo mais rápidos, salário ajustável, mais estações por funcionário."
+      "description": "Mais rápidos, salário pago sozinho pelo banco, mais vagas por imóvel, mais estações e rotas."
     },
     {
       "id": "AutoClearDeals",
@@ -144,6 +144,30 @@
       "name": "Fornecedores: pagar dívida",
       "default": false,
       "description": "Paga sozinho a dívida com os fornecedores (sementes, pseudo...), sem ir ao esconderijo."
+    },
+    {
+      "id": "FastDeliveries",
+      "name": "Entregas rápidas",
+      "default": true,
+      "description": "Entregas das lojas (app Delivery) e dead drops dos fornecedores chegam em minutos."
+    },
+    {
+      "id": "Upgrades",
+      "name": "Melhorias",
+      "default": true,
+      "description": "Compre no app Finanças: plantas/cogumelos crescem mais rápido e a lavagem termina antes."
+    },
+    {
+      "id": "DealerTexts",
+      "name": "Dealers mandam mensagem",
+      "default": true,
+      "description": "Dealers avisam cada venda, quando o produto está acabando e mandam um resumo do dia."
+    },
+    {
+      "id": "HudInfo",
+      "name": "Relógio e XP na tela",
+      "default": true,
+      "description": "Hora, dia e barra de XP do rank sempre visíveis no canto da tela."
     }
   ]
 }
