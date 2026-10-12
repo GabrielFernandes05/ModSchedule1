@@ -17,6 +17,9 @@ public static class Net
     /// </summary>
     public static bool InLobby => Lobby.InstanceExists && Lobby.Instance.IsInLobby;
 
+    /// <summary>Dono do lobby Steam (quem vai hospedar). Já vale no menu, antes de a partida (FishNet) começar.</summary>
+    public static bool IsLobbyOwner => InLobby && Lobby.Instance.IsHost;
+
     public static string? GetLobbyData(string key) => InLobby ? Lobby.Instance._lobbyService.GetLobbyData(key) : null;
 
     public static void SetLobbyData(string key, string value)

@@ -86,7 +86,7 @@ public sealed class Upgrades : Feature<Upgrades>
             string payload = $"{_current.Growth}:{_current.Laundering}";
             if (Net.InLobby && payload != _published) { Net.SetLobbyData(LobbyKey, payload); _published = payload; }
         }
-        else if (Net.IsClientOnly)
+        else if (Net.InLobby && !Net.IsLobbyOwner)
         {
             var parts = (Net.GetLobbyData(LobbyKey) ?? "").Split(':');
             if (parts.Length == 2 && int.TryParse(parts[0], out int g) && int.TryParse(parts[1], out int l)

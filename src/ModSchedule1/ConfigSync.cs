@@ -61,7 +61,7 @@ public static class ConfigSync
     private static bool _warnedVersion;
 
     /// <summary>
-    /// A cada 2 s (Core.OnUpdate): host publica a config de jogo no lobby; cliente lê e aplica.
+    /// A cada 2 s (Core.OnUpdate): dono do lobby publica a config de jogo; os outros membros leem e aplicam.
     /// ponytail: polling em vez de callback LobbyDataUpdate (o jogo não instancia esse genérico no IL2CPP);
     /// GetLobbyData lê um cache local da Steam, é barato.
     /// </summary>
@@ -72,17 +72,20 @@ public static class ConfigSync
         try
         {
             if (!Net.InLobby) { Clear(); _published = null; return; }
-            if (Net.IsHost)
+            // Dono do lobby publica já no menu: quem entra recebe a config antes de carregar o mapa (coisas aplicadas
+            // ao carregar, como vagas por imóvel e velocidade das estações, já saem com a config do host).
+            if (Net.IsLobbyOwner)
             {
                 Clear();
                 var payload = BuildPayload();
                 if (payload == _published) return;
+                if (payload.Length > 8000) Log.Error($"config com {payload.Length} bytes passa do limite do lobby da Steam (8 KB): os jogadores não vão recebê-la");
                 Net.SetLobbyData(Key, payload);
                 Net.SetLobbyData(VersionKey, Core.Version);
                 _published = payload;
                 Log.Info($"config de jogo publicada para os jogadores ({payload.Length} bytes)");
             }
-            else if (Net.IsClientOnly)
+            else
             {
                 var hostVersion = Net.GetLobbyData(VersionKey);
                 if (!_warnedVersion && !string.IsNullOrEmpty(hostVersion) && hostVersion != Core.Version)

@@ -26,6 +26,10 @@ internal static class ModsSettingsTab
     private static readonly Log Log = new("Menu");
     private const string TabName = "MS1_ModsTab", MenuButtonName = "MS1_ModsButton";
     private static readonly List<(GameObject Owner, Action Run)> Refreshers = new();
+    // Lidos todo frame enquanto a aba está aberta (sliders): eventos genéricos do jogo (UnityEvent<float>/<bool>)
+    // não chegam ao nosso código no IL2CPP, então não dependemos deles.
+    private static readonly List<(GameObject Owner, Action Poll)> Pollers = new();
+    private static float _saveAt = -1;
     private static readonly List<SettingsScreen> Screens = new();
     private static SettingsScreen? _pending;   // botão "Mods" do menu: abrir esta tela na aba Mods
     private static float _pendingAt;
@@ -52,9 +56,19 @@ internal static class ModsSettingsTab
         }
     }
 
-    /// <summary>Chamado todo frame: conclui o "abrir na aba Mods" depois que a tela de Configurações abriu.</summary>
+    /// <summary>Grava o cfg logo depois (arrastar um slider mudaria o valor todo frame).</summary>
+    private static void RequestSave() => _saveAt = Time.unscaledTime + 0.4f;
+
+    /// <summary>Chamado todo frame: sliders, gravação do cfg e o "abrir na aba Mods" depois que a tela abriu.</summary>
     public static void Tick()
     {
+        Pollers.RemoveAll(p => p.Owner == null);
+        foreach (var (owner, poll) in Pollers)
+        {
+            if (!owner.activeInHierarchy) continue;
+            try { poll(); } catch (Exception e) { Log.Error($"opção: {e.Message}"); }
+        }
+        if (_saveAt > 0 && Time.unscaledTime >= _saveAt) { _saveAt = -1; MelonPreferences.Save(); }
         if (_pending == null) return;
         try { TickPending(); }
         catch (Exception e) { _pending = null; Log.Error($"abrir aba Mods: {e.Message}"); }
@@ -157,7 +171,7 @@ internal static class ModsSettingsTab
             bool open = false;
             Func<string> suffix = () => f.Enabled.Overridden ? "  (do host)" : "";
             var head = b.Toggle(() => $"{f.Name}{(f.Faulted ? "  <color=#ff7070>(erro)</color>" : "")}{suffix()}  <alpha=#80>{(open ? "[-]" : "[+]")}",
-                () => f.Enabled.Value, v => { f.Enabled.Value = v; MelonPreferences.Save(); }, () => !f.Enabled.Overridden);
+                () => f.Enabled.Value, v => { f.Enabled.Value = v; RequestSave(); }, () => !f.Enabled.Overridden);
 
             section.Add(b.Info(() => f.Description + (f.Faulted ? " Desativado por erro nesta sessão (veja o log)." : "")
                 + (f.Shared ? " Config do host no multiplayer." : " Config pessoal (cada jogador escolhe)."), indent: true));
@@ -169,11 +183,11 @@ internal static class ModsSettingsTab
                 Func<bool> editable = () => !p.Overridden;
                 GameObject? row = p switch
                 {
-                    Pref<bool> bp => b.Toggle(label, () => bp.Value, v => { bp.Value = v; MelonPreferences.Save(); }, editable),
+                    Pref<bool> bp => b.Toggle(label, () => bp.Value, v => { bp.Value = v; RequestSave(); }, editable),
                     Pref<int> n when sliderRow != null => b.Slider(label, p.Min, p.Max, true, () => n.Value,
-                        v => { n.Value = Mathf.RoundToInt(v); MelonPreferences.Save(); }, editable),
+                        v => { n.Value = Mathf.RoundToInt(v); RequestSave(); }, editable),
                     Pref<float> fl when sliderRow != null => b.Slider(label, p.Min, p.Max, false, () => fl.Value,
-                        v => { fl.Value = (float)Math.Round(v, 2); MelonPreferences.Save(); }, editable),
+                        v => { fl.Value = (float)Math.Round(v, 2); RequestSave(); }, editable),
                     _ => b.Info(() => $"{p.Entry.DisplayName}: {Format(p.BoxedValue)}   (edite em UserData/ModSchedule1.cfg)", indent: true),
                 };
                 if (row != null) section.Add(row);
@@ -229,7 +243,8 @@ internal static class ModsSettingsTab
             go.GetComponent<Button>()?.onClick.AddListener((UnityAction)open);
             go.GetComponent<UITrigger>()?.OnTrigger.AddListener((UnityAction)open);
             var selectable = go.GetComponent<UISelectable>();
-            var menuPanel = sel.GetComponentInParent<UIPanel>(true);
+            UIPanel? menuPanel = null;   // GetComponentInParent<T>(bool) quebra no IL2CPP: sobe na mão
+            for (var t = sel.transform; t != null && menuPanel == null; t = t.parent) menuPanel = t.GetComponent<UIPanel>();
             if (selectable != null && menuPanel != null) menuPanel.AddSelectable(selectable);
 
             var rt = go.GetComponent<RectTransform>();
@@ -386,6 +401,15 @@ internal static class ModsSettingsTab
             NativeUi.DumpOnce(ref _dumpedToggle, row.transform, "linha liga/desliga (clone)", 3);
             FitLabel(ui.nameText, ui.toggleImage != null ? ui.toggleImage.transform.parent : null,
                 ui.toggleImage != null ? ui.toggleImage.transform : null, ui.buttonText != null ? ui.buttonText.transform : null);
+            // Clique do mouse: área nossa por cima do liga/desliga (botão comum, igual ao [+] que funciona)
+            Transform? control = ui.toggleImage != null ? ui.toggleImage.transform : null;
+            while (control != null && control.parent != row.transform) control = control.parent;
+            ClickArea(control ?? row.transform, () =>
+            {
+                if (!editable()) return;
+                set(!get());
+                Refresh();
+            });
             Add(row, () =>
             {
                 string text = label();
@@ -395,6 +419,19 @@ internal static class ModsSettingsTab
                 Editable(row, editable());
             });
             return row;
+        }
+
+        /// <summary>Área transparente clicável cobrindo <paramref name="target"/>, por cima de tudo nele.</summary>
+        private static void ClickArea(Transform target, Action onClick)
+        {
+            var area = Ui.Stretch("MS1_Click", target);
+            area.transform.SetAsLastSibling();
+            var image = area.AddComponent<Image>();
+            image.color = new Color(0, 0, 0, 0);   // invisível, mas recebe o clique
+            var button = area.AddComponent<Button>();
+            button.transition = Selectable.Transition.None;
+            button.navigation = new Navigation { mode = Navigation.Mode.None };
+            button.onClick.AddListener((UnityAction)onClick);
         }
 
         /// <summary>Clicar no rótulo da linha executa <paramref name="onClick"/> (o resto da linha continua liga/desliga).</summary>
@@ -455,12 +492,22 @@ internal static class ModsSettingsTab
                 if (value != null) value.text = Format(get());
             }));
             if (_uiPanel != null && ui != null && ui.selectable != null) _uiPanel.AddSelectable(ui.selectable);
+            // o arrasto é do próprio uGUI; lemos o valor todo frame e gravamos quando muda
+            float last = float.NaN;
+            Pollers.Add((row, () =>
+            {
+                if (Mathf.Approximately(slider.value, last) || !editable()) return;
+                last = slider.value;
+                set(slider.value);
+                if (value != null) value.text = Format(get());
+            }));
             Add(row, () =>
             {
                 string text = label();
                 if (ui != null) ui.optionName = text;
                 if (name != null) name.text = text;
                 slider.SetValueWithoutNotify(Mathf.Clamp(get(), min, max));
+                last = slider.value;
                 if (value != null) { value.text = Format(get()); value.gameObject.SetActive(true); }
                 Editable(row, editable());
             });
