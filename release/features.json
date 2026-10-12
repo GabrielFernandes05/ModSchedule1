@@ -1,11 +1,11 @@
 {
-  "version": "0.12.0",
+  "version": "0.12.1",
   "features": [
     {
       "id": "BetterStacks",
       "name": "Better Stacks",
       "default": true,
-      "description": "Pilhas maiores por categoria de item; mixing station com mais capacidade."
+      "description": "Pilhas maiores por categoria; munição soma balas num item só (7 + 7 = 14); mixer com mais capacidade."
     },
     {
       "id": "NoMoreTrash",

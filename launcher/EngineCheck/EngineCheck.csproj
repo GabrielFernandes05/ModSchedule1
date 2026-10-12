@@ -10,5 +10,6 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../ModSchedule1.Launcher/Engine.cs" />
+    <Compile Include="../../src/ModSchedule1/AmmoMerge.cs" />
   </ItemGroup>
 </Project>
