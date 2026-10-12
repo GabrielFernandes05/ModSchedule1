@@ -31,7 +31,8 @@ public sealed class Minimap : Feature<Minimap>
     private GameObject? _root;
     private RectTransform _frame = null!, _world = null!, _offset = null!, _arrow = null!;
     private readonly Dictionary<IntPtr, (POI Poi, RectTransform Icon)> _icons = new();
-    private float _nextScan;
+    private float _nextScan, _lastFullScan;
+    private int _lastPoiChildren = -2, _loggedIcons = -1;
     private bool _logged;
     private static Sprite? _circle;
 
@@ -80,12 +81,32 @@ public sealed class Minimap : Feature<Minimap>
         _offset.anchoredPosition = -here;
         _arrow.localEulerAngles = new Vector3(0, 0, _rotate.Value ? 0f : -yaw);
 
-        if (Time.unscaledTime >= _nextScan) { _nextScan = Time.unscaledTime + 2f; ScanPois(); }
+        if (Time.unscaledTime >= _nextScan)
+        {
+            // FindObjectsOfType varre a cena inteira: só quando os ícones do app de mapa mudam, ou a cada 15 s
+            _nextScan = Time.unscaledTime + 2f;
+            // assinatura = quantidade + último ícone (o app sempre acrescenta no fim): pega troca de um POI por outro
+            var pc = MapApp.InstanceExists ? MapApp.Instance.PoIContainer : null;
+            int n = pc != null ? pc.childCount : -1;
+            int children = n <= 0 ? n : HashCode.Combine(n, pc!.GetChild(n - 1).GetInstanceID());
+            if (children != _lastPoiChildren || Time.unscaledTime - _lastFullScan > 15f)
+            {
+                _lastPoiChildren = children;
+                _lastFullScan = Time.unscaledTime;
+                ScanPois();
+            }
+        }
         float iconScale = _iconScale.Value / zoom;
         float counter = _rotate.Value ? -yaw : 0f;
         foreach (var (poi, icon) in _icons.Values)
         {
-            if (poi == null || icon == null) continue;
+            if (icon == null) continue;
+            if (poi == null || poi.UI == null)
+            {
+                // POI desligado (o jogo destrói o ícone dele no app): some já e varre de novo no próximo ciclo
+                if (icon.gameObject.activeSelf) { icon.gameObject.SetActive(false); _lastPoiChildren = int.MinValue; }
+                continue;
+            }
             icon.anchoredPosition = util.GetMapPosition(poi.transform.position);
             icon.localScale = new Vector3(iconScale, iconScale, 1f);
             icon.localEulerAngles = new Vector3(0, 0, counter);   // ícone sempre em pé
@@ -157,6 +178,7 @@ public sealed class Minimap : Feature<Minimap>
 
         _icons.Clear();
         _nextScan = 0;
+        _lastPoiChildren = -2;   // força varrer no minimapa novo
         if (!_logged)
         {
             _logged = true;
@@ -173,7 +195,7 @@ public sealed class Minimap : Feature<Minimap>
         foreach (var poi in Object.FindObjectsOfType<POI>())
         {
             if (poi == null || poi.IconContainer == null || (local != null && poi.Pointer == local.Pointer)) continue;
-            if (poi.UI != null && !poi.UI.gameObject.activeSelf) continue;   // POI escondido no app também
+            if (poi.UI == null || !poi.UI.gameObject.activeSelf) continue;   // sem ícone ou escondido no app: aqui também
             seen.Add(poi.Pointer);
             if (_icons.ContainsKey(poi.Pointer)) continue;
             var holder = Centered("Poi", _offset);
@@ -188,7 +210,7 @@ public sealed class Minimap : Feature<Minimap>
             if (_icons[key].Icon != null) Object.Destroy(_icons[key].Icon.gameObject);
             _icons.Remove(key);
         }
-        Log.Debug($"minimapa: {_icons.Count} ícones");
+        if (_icons.Count != _loggedIcons) { _loggedIcons = _icons.Count; Log.Debug($"minimapa: {_icons.Count} ícones"); }
     }
 
     private static RectTransform CopyIcon(RectTransform source, RectTransform parent)

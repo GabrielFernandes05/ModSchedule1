@@ -4,6 +4,7 @@ using Il2CppInterop.Runtime;
 using Il2CppScheduleOne.Economy;
 using Il2CppScheduleOne.ItemFramework;
 using Il2CppScheduleOne.Money;
+using Il2CppScheduleOne.PlayerScripts;
 using Il2CppScheduleOne.Property;
 using Il2CppScheduleOne.UI;
 using ModSchedule1.Features;
@@ -395,12 +396,30 @@ public sealed class FinanceApp : PhoneApp
     private void OpenInventory(Dealer d)
     {
         if (d == null || d.Inventory == null || !StorageMenu.InstanceExists || StorageMenu.Instance.IsOpen) return;
-        Close("inventário do dealer");
-        if (GameplayMenu.InstanceExists && GameplayMenu.Instance.IsOpen) GameplayMenu.Instance.Close();
         // Como em pessoa (Dealer.TradeItems): o dealer para enquanto o menu está aberto. Sem isso ele pode entregar uma
-        // venda tirando itens dos mesmos slots que você está mexendo, e o produto duplica.
+        // venda tirando itens dos mesmos slots que você está mexendo, e o produto duplica. Se ele já está parado
+        // conversando/trocando com alguém, recusa (o jogo também só deixa um jogador por vez).
+        // "Ligada" e não só "ativa": se o dealer leva um tiro ou foge, a conversa fica pausada mas continua de alguém.
+        // Quem saiu do jogo (Player destruído) não segura mais o dealer.
         var talk = d.Behaviour != null ? d.Behaviour.GenericDialogueBehaviour : null;
-        if (talk != null) talk.Enable_Server();
+        if (talk != null && talk.Enabled)
+        {
+            var holder = talk.targetPlayer;
+            if (holder != null && Player.Local != null && holder.Pointer != Player.Local.Pointer)
+            {
+                if (HintDisplay.InstanceExists) HintDisplay.Instance.ShowHint($"{d.FullName} está ocupado com outro jogador.", 4f);
+                return;
+            }
+        }
+        Close("inventário do dealer");
+        if (talk != null)
+        {
+            if (Player.Local != null) talk.SendTargetPlayer(Player.Local.NetworkObject);   // como o DialogueHandler em pessoa
+            talk.Enable_Server();
+        }
+        // Ordem do jogo em pessoa: o menu abre por cima e só então o celular sai de baixo (Remove, não Pop). Fechar o
+        // celular antes reativava o personagem por um instante entre as duas telas.
+        bool phoneOpen = GameplayMenu.InstanceExists && GameplayMenu.Instance.IsOpen;
         StorageMenu.Instance.Open(new IItemSlotOwner(d.Inventory.Pointer), $"Inventário de {d.FullName}",
             "Coloque <color=#4CB0FF>produto embalado</color> aqui: o dealer vende para os clientes dele.",
             DelegateSupport.ConvertDelegate<Il2CppSystem.Action>(new Action(() =>
@@ -410,6 +429,7 @@ public sealed class FinanceApp : PhoneApp
                 // sobras do inventário só no host: num cliente a baixa na sobra é local e o item duplicaria
                 if (Net.IsHost) d.TryMoveOverflowItems();
             })));
+        if (phoneOpen) GameplayMenu.Instance.State.RemoveFromDefaultParent();
         Dealers.I.Log.Info($"inventário de {d.FullName} aberto pelo app");
     }
 

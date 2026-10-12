@@ -27,13 +27,24 @@ public sealed class PlantsAlwaysGrow : Feature<PlantsAlwaysGrow>
         Log.Debug("inscrito em TimeManager.onUncappedMinutePass");
     }
 
+    private Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppArrayBase<GrowContainer>? _containers;
+    private float _containersAt;
+
+    public override void OnSceneLoaded(string scene) => _containers = null;
+
     private void OnUncappedMinute()
     {
         if (!EndOfDay.IsNow) { _loggedTonight = false; return; }
         if (!Active) return;
         Guard("OnUncappedMinute", () =>
         {
-            var containers = Object.FindObjectsOfType<GrowContainer>();
+            // varrer a cena é caro: às 4h isto roda a cada segundo; a lista vale por 30 s (vaso novo espera até lá)
+            if (_containers == null || Time.unscaledTime - _containersAt > 30f)
+            {
+                _containers = Object.FindObjectsOfType<GrowContainer>();
+                _containersAt = Time.unscaledTime;
+            }
+            var containers = _containers;
             EndOfDay.Run(() =>
             {
                 foreach (var c in containers)

@@ -8,6 +8,7 @@ using Il2CppScheduleOne.Equipping;
 using Il2CppScheduleOne.ItemFramework;
 using Il2CppScheduleOne.ObjectScripts;
 using Il2CppScheduleOne.PlayerScripts;
+using Il2CppScheduleOne.UI;
 using Il2CppScheduleOne.UI.Items;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -317,6 +318,49 @@ public sealed class BetterStacks : Feature<BetterStacks>
             if (!I.IsAmmo(ammo) || ammo!.Quantity <= 1 || __instance.DescriptionLabel == null) return;
             __instance.DescriptionLabel.text += $"\n<b>{ammo.Quantity} x {ammo.Value} balas</b> ({ammo.Quantity * ammo.Value} no total). Scroll divide por pente.";
         }
+    }
+
+    // ---------- juntar pilhas ----------
+    // Ao soltar uma pilha sobre outra, o jogo move UMA unidade por vez (cada uma com RPC e redesenho do slot). Com
+    // pilhas 10x maiores isso vira centenas de RPCs e redesenhos num frame: o "lag ao stackar". Movemos tudo menos
+    // a última unidade de uma vez; o laço do jogo move a última e segue o fluxo normal (onItemMoved, limpeza).
+    private static bool _loggedMerge;
+
+    private static void PreMerge(ItemUIManager m, ItemSlotUI? hovered)
+    {
+        if (!I.Active || m.isDraggingCash) return;
+        var drag = m.draggedSlot;
+        if (drag == null || hovered == null || hovered.Pointer == drag.Pointer || !m.CanDragFromSlot(drag)) return;
+        ItemSlot? from = drag.assignedSlot, to = hovered.assignedSlot;
+        if (from?.ItemInstance == null || to?.ItemInstance == null || to.IsLocked || to.IsAddLocked
+            || !to.DoesItemMatchHardFilters(from.ItemInstance) || !to.ItemInstance.CanStackWith(from.ItemInstance, false)) return;
+        int n = Math.Min(to.ItemInstance.StackLimit - to.Quantity, m.draggedAmount) - 1;
+        if (n <= 0) return;
+        to.ChangeQuantity(n);
+        from.ChangeQuantity(-n);
+        m.draggedAmount -= n;
+        if (!_loggedMerge) { _loggedMerge = true; I.Log.Debug($"pilhas juntadas de uma vez ({n + 1} unidades)"); }
+    }
+
+    // Caminho do mouse: o Update solta o arrasto quando nenhum botão está pressionado (mesma condição do jogo).
+    // Update é mensagem da Unity (nunca inlinada); o EndDrag sozinho pode estar inlinado em alguns chamadores.
+    [HarmonyPatch(typeof(ItemUIManager), nameof(ItemUIManager.Update))]
+    private static class MergeOnReleasePatch
+    {
+        private static void Prefix(ItemUIManager __instance)
+        {
+            if (__instance.draggedSlot == null || !__instance.DraggingEnabled || GameInput.GetCurrentInputDeviceIsGamepad()) return;
+            if (GameInput.GetButton(GameInput.ButtonCode.PrimaryClick) || GameInput.GetButton(GameInput.ButtonCode.SecondaryClick)
+                || GameInput.GetButton(GameInput.ButtonCode.TertiaryClick)) return;
+            I.Guard("juntar pilhas", () => PreMerge(__instance, __instance.GetHoveredItemSlot()));
+        }
+    }
+
+    // Demais caminhos (controle, desligar arrasto): se o Update já juntou, aqui não sobra nada a fazer.
+    [HarmonyPatch(typeof(ItemUIManager), nameof(ItemUIManager.EndDrag))]
+    private static class MergeOnEndDragPatch
+    {
+        private static void Prefix(ItemUIManager __instance) => I.Guard("juntar pilhas", () => PreMerge(__instance, __instance.HoveredSlot));
     }
 
     // Produtos novos (misturas) entram no Registry no meio da partida.
