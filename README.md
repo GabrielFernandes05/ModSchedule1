@@ -45,7 +45,7 @@ A primeira abertura do jogo demora alguns minutos, porque o MelonLoader gera os 
 | Bank + Laundry | App **Finanças** no celular: banco, lavagem, dealers e transações | pessoal |
 | More Guns | Submetralhadora, pistola de pente estendido, Magnum e escopeta automática no Stan (visual das armas do jogo) | do host |
 | More Clothing | Peças que só NPCs usavam (uniformes etc.) à venda na loja de roupas | do host |
-| Minimap | Minimapa redondo no canto da tela, com os ícones do mapa do celular; gira com a câmera | pessoal |
+| Minimap | Minimapa redondo no canto da tela, com os ícones do mapa do celular; gira com a câmera. **F7** mostra/esconde (configurável) | pessoal |
 | Robbery | Na tela da loja: **Assaltar o caixa** ($350–750, 1x por dia por loja; armado sempre dá certo) e **Furtar o carrinho** (chance de ser visto). O caixa chama a polícia | do host |
 | Acelerar o tempo | **F6** liga/desliga o relógio acelerado (10x, configurável). Tudo passa minuto a minuto como no normal; para sozinho às 4:00 (hora de dormir) | só host |
 | Clientes em potencial | Bola rosa sobre a cabeça de quem já pode virar cliente (mesma regra do marcador do mapa: conhece um cliente seu e a região está liberada) | pessoal |

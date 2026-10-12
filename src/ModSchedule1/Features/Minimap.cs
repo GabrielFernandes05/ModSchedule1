@@ -20,11 +20,12 @@ public sealed class Minimap : Feature<Minimap>
 {
     public override string Id => "Minimap";
     public override string Name => "Minimap";
-    public override string Description => "Minimapa no canto da tela com os ícones do mapa do celular.";
+    public override string Description => "Minimapa no canto da tela com os ícones do mapa do celular. F7 mostra/esconde.";
     public override bool Shared => false;   // pessoal: só desenha na tela de quem usa
 
     private Pref<int> _size = null!, _radius = null!, _corner = null!;
-    private Pref<bool> _rotate = null!;
+    private Pref<bool> _rotate = null!, _visible = null!;
+    private HotKey _key = null!;
     private Pref<float> _iconScale = null!;
 
     private GameObject? _root;
@@ -41,7 +42,9 @@ public sealed class Minimap : Feature<Minimap>
         _corner = Setting("Corner", 0, "Canto (0 sup.dir. 1 sup.esq. 2 inf.dir. 3 inf.esq.)", min: 0, max: 3);
         _rotate = Setting("Rotate", true, "Girar com a câmera");
         _iconScale = Setting("IconScale", 0.6f, "Tamanho dos ícones", min: 0.2f, max: 1.5f);
-        Enabled.Changed += () => { if (_root != null) _root.SetActive(Enabled.Value); };
+        _visible = Setting("Visible", true, "Mostrar (a tecla alterna)");
+        _key = new HotKey(Setting("Key", "F7", "Tecla mostrar/esconder (nome do KeyCode da Unity)"), KeyCode.F7, Log);
+        Enabled.Changed += () => { if (_root != null) _root.SetActive(Enabled.Value && _visible.Value); };
     }
 
     public override void OnSceneLoaded(string scene)
@@ -53,6 +56,13 @@ public sealed class Minimap : Feature<Minimap>
     public override void OnUpdate()
     {
         if (SceneManager.GetActiveScene().name != "Main" || Player.Local == null || !MapPositionUtility.InstanceExists) return;
+        if (_key.Pressed)
+        {
+            _visible.Value = !_visible.Value;
+            MelonLoader.MelonPreferences.Save();
+            Log.Debug(_visible.Value ? "minimapa visível" : "minimapa escondido");
+        }
+        if (!_visible.Value) { if (_root != null) _root.SetActive(false); return; }
         if (_root == null && !Build()) return;
         _root!.SetActive(true);
 

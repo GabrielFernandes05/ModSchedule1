@@ -19,15 +19,13 @@ public sealed class TimeWarp : Feature<TimeWarp>
     public override bool HostOnly => true;
 
     private Pref<int> _speed = null!;
-    private Pref<string> _key = null!;
+    private HotKey _key = null!;
     private bool _on;
-    private string? _parsedFrom;
-    private KeyCode _keyCode = KeyCode.F6;
 
     protected override void OnInit()
     {
         _speed = Setting("Speed", 10, "Velocidade (x)", min: 2, max: 60);
-        _key = Setting("Key", "F6", "Tecla (nome do KeyCode da Unity)", shared: false);
+        _key = new HotKey(Setting("Key", "F6", "Tecla (nome do KeyCode da Unity)", shared: false), KeyCode.F6, Log);
         Enabled.Changed += () => { if (!Enabled.Value) Stop(null); };
     }
 
@@ -37,24 +35,15 @@ public sealed class TimeWarp : Feature<TimeWarp>
     {
         if (!TimeManager.InstanceExists) return;
         var tm = TimeManager.Instance;
-        if (Input.GetKeyDown(Key()))
+        if (_key.Pressed)
         {
             if (_on) Stop("Tempo normal.");
             else if (tm.IsEndOfDay) Notify("São 4:00: o relógio só volta depois de dormir.");
-            else { _on = true; Notify($"Tempo acelerado ({_speed.Value}x). {_key.Value} para voltar ao normal."); }
+            else { _on = true; Notify($"Tempo acelerado ({_speed.Value}x). {_key.Name} para voltar ao normal."); }
         }
         if (!_on) return;
         if (tm.IsEndOfDay) { Stop("4:00: hora de dormir. Tempo normal."); return; }
         if (Math.Abs(tm.TimeSpeedMultiplier - _speed.Value) > 0.01f) tm.SetTimeSpeedMultiplier(_speed.Value);
-    }
-
-    private KeyCode Key()
-    {
-        if (_parsedFrom == _key.Value) return _keyCode;
-        _parsedFrom = _key.Value;
-        if (Enum.TryParse<KeyCode>(_key.Value, true, out var k)) _keyCode = k;
-        else Log.Warn($"tecla '{_key.Value}' inválida (use nomes como F6, F7, Keypad0); usando {_keyCode}");
-        return _keyCode;
     }
 
     private void Stop(string? message)

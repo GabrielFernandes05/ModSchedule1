@@ -1,5 +1,5 @@
 {
-  "version": "0.12.2",
+  "version": "0.12.3",
   "features": [
     {
       "id": "BetterStacks",
@@ -119,7 +119,7 @@
       "id": "Minimap",
       "name": "Minimap",
       "default": true,
-      "description": "Minimapa no canto da tela com os ícones do mapa do celular."
+      "description": "Minimapa no canto da tela com os ícones do mapa do celular. F7 mostra/esconde."
     },
     {
       "id": "Robbery",
