@@ -1,5 +1,5 @@
 {
-  "version": "0.14.2",
+  "version": "0.15.0",
   "features": [
     {
       "id": "BetterStacks",
@@ -53,7 +53,7 @@
       "id": "BetterEmployees",
       "name": "Better Employees",
       "default": true,
-      "description": "Mais rápidos, salário pago sozinho pelo banco, mais vagas por imóvel, mais estações e rotas."
+      "description": "Mais rápidos, salário pago sozinho pelo banco, vagas por imóvel configuráveis, mais estações e rotas (lista rolável na prancheta)."
     },
     {
       "id": "AutoClearDeals",
@@ -83,7 +83,7 @@
       "id": "Recipes",
       "name": "Recipe List",
       "default": true,
-      "description": "Receita completa de cada mistura no app de produtos do jogo."
+      "description": "Livro de receitas (F8): produtos, ingredientes, efeitos, química, estações e cultivo em abas; receita completa no app de produtos."
     },
     {
       "id": "Deliveries",

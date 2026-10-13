@@ -42,8 +42,23 @@ public sealed class StationSpeed : Feature<StationSpeed>
         foreach (var p in new[] { _cauldron, _chemistry, _oven, _drying, _mixing, _packaging }) p.Changed += Reapply;
     }
 
+    // Os patches das mesas não usam Guard (que pula com a feature desligada): a mesa precisa entrar na lista e receber a
+    // melhoria comprada mesmo com a config de velocidade desligada.
+    private static void Run(string what, Action action)
+    {
+        if (I.Faulted) return;
+        try { action(); }
+        catch (Exception e) { I.Fault(what, e); }
+    }
+
     private float Mult(Pref<float> e, Upgrades.Track t) =>
         (Enabled.Value && !Faulted ? Math.Max(0.1f, e.Value) : 1f) * Upgrades.I.Multiplier(t);
+
+    // velocidade final de cada mesa (o livro de receitas mostra os tempos já com ela)
+    public float OvenSpeed => Mult(_oven, Upgrades.Oven);
+    public float CauldronSpeed => Mult(_cauldron, Upgrades.Cauldron);
+    public float DryingSpeed => Mult(_drying, Upgrades.Drying);
+    public float MixingSpeed => Mult(_mixing, Upgrades.Mixing);
 
     public override void OnSceneLoaded(string scene) { _cauldrons.Clear(); _mixers.Clear(); _packagers.Clear(); }
 
@@ -76,7 +91,7 @@ public sealed class StationSpeed : Feature<StationSpeed>
     [HarmonyPatch(typeof(Cauldron), nameof(Cauldron.Awake))]
     private static class CauldronPatch
     {
-        private static void Postfix(Cauldron __instance) => I.Guard("Cauldron.Awake", () =>
+        private static void Postfix(Cauldron __instance) => Run("Cauldron.Awake", () =>
         {
             int old = __instance.CookTime;
             I._cauldrons.Add((__instance, old));
@@ -89,7 +104,7 @@ public sealed class StationSpeed : Feature<StationSpeed>
     [HarmonyPatch(typeof(ChemistryStationInterface), nameof(ChemistryStationInterface.Awake))]
     private static class ChemistryPatch
     {
-        private static void Prefix(ChemistryStationInterface __instance) => I.Guard("ChemistryStationInterface.Awake", () =>
+        private static void Prefix(ChemistryStationInterface __instance) => Run("ChemistryStationInterface.Awake", () =>
         {
             I._recipes.Clear();
             foreach (var r in __instance.Recipes) I._recipes.Add(r);
@@ -119,7 +134,7 @@ public sealed class StationSpeed : Feature<StationSpeed>
     [HarmonyPatch(typeof(MixingStation), nameof(MixingStation.Awake))]
     private static class MixingPatch
     {
-        private static void Postfix(MixingStation __instance) => I.Guard("MixingStation.Awake", () =>
+        private static void Postfix(MixingStation __instance) => Run("MixingStation.Awake", () =>
         {
             int old = __instance.MixTimePerItem;
             I._mixers.Add((__instance, old));
@@ -132,7 +147,7 @@ public sealed class StationSpeed : Feature<StationSpeed>
     [HarmonyPatch(typeof(PackagingStation), nameof(PackagingStation.Awake))]
     private static class PackagingPatch
     {
-        private static void Postfix(PackagingStation __instance) => I.Guard("PackagingStation.Awake", () =>
+        private static void Postfix(PackagingStation __instance) => Run("PackagingStation.Awake", () =>
         {
             float old = __instance.PackagerEmployeeSpeedMultiplier;
             I._packagers.Add((__instance, old));

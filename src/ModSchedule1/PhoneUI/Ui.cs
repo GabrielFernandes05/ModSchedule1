@@ -78,6 +78,27 @@ public static class Ui
         return go;
     }
 
+    /// <summary>Faixa de largura total presa ao topo do pai (cabeçalho, barra de abas).</summary>
+    public static void Pin(GameObject go, float top, float height)
+    {
+        var rt = go.GetComponent<RectTransform>();
+        rt.anchorMin = new Vector2(0, 1);
+        rt.anchorMax = new Vector2(1, 1);
+        rt.pivot = new Vector2(0.5f, 1);
+        rt.anchoredPosition = new Vector2(0, -top);
+        rt.sizeDelta = new Vector2(0, height);
+    }
+
+    /// <summary>Texto ocupando o pai inteiro, com margens laterais.</summary>
+    public static void Fill(Text t, float left, float right)
+    {
+        var rt = t.GetComponent<RectTransform>();
+        rt.anchorMin = Vector2.zero;
+        rt.anchorMax = Vector2.one;
+        rt.offsetMin = new Vector2(left, 0);
+        rt.offsetMax = new Vector2(-right, 0);
+    }
+
     public static GameObject Child(string name, Transform parent)
     {
         var go = new GameObject(name);

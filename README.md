@@ -34,13 +34,13 @@ A primeira abertura do jogo demora alguns minutos, porque o MelonLoader gera os 
 | Employees Always Work | Funcionários trabalham depois das 4h (só host) | do host |
 | Absorbent Soil | Aditivos ficam no solo entre colheitas | do host |
 | Station Speed | Estações mais rápidas (multiplicador por tipo); a melhoria comprada multiplica por cima | do host |
-| Better Employees | Trabalho/passo mais rápidos, salário ajustável, mais estações por funcionário; **salário pago sozinho pelo banco** (sem dinheiro no armário), **2x vagas por imóvel** e **10 rotas por handler**. Atenção: tirar o mod ou baixar as vagas faz o jogo descartar quem passar do limite | do host |
-| Employee Facilities | Funcionários dividem cama/armário | do host |
+| Better Employees | Trabalho/passo mais rápidos, salário ajustável, mais estações por funcionário; **salário pago sozinho pelo banco** (sem dinheiro no armário), **2x vagas por imóvel** (ou um mínimo fixo, ex.: 20; muda na hora) e **10 rotas por handler** (a lista da prancheta rola). Baixar as vagas não demite ninguém; tirar o mod faz o jogo descartar quem passar do limite | do host |
+| Employee Facilities | Funcionários dividem cama/armário (4 por padrão, configurável) | do host |
 | Ações rápidas | Pula as animações de terra, plantio, aditivos, rega, encher regador, colheita, cogumelos e das mesas: embalagem (embala tudo), mixer, química (sem explosão), caldeirão, forno e prensa | pessoal |
 | Compass Distances | Distância de todos os marcadores na bússola | pessoal |
 | Auto Clear Completed Deals | Esconde conversas de clientes sem negócio pendente | pessoal |
 | Dealers+ | Coletar dinheiro no app de dealers do jogo | pessoal |
-| Recipe List | Receita completa no app de produtos do jogo | pessoal |
+| Recipe List | **F8** abre o livro de receitas em abas: produtos (efeitos, valor e receita completa), ingredientes, efeitos, química, estações (forno, caldeirão, secador, prensa) e cultivo, com os tempos já com o mod e as melhorias. Também mostra a receita completa no app de produtos | pessoal |
 | DeliveryApp++ | Favoritos e pedidos recorrentes no app Delivery do jogo | pessoal |
 | Bank + Laundry | App **Finanças** no celular, em abas: Banco, Lavagem, Fornecedores (pagar dívida na hora), Dealers (coletar, ver estoque e abrir o inventário do dealer à distância), Melhorias e Histórico | pessoal |
 | More Guns | Submetralhadora, pistola de pente estendido, Magnum e escopeta automática no Stan (visual das armas do jogo) | do host |
@@ -59,7 +59,7 @@ A primeira abertura do jogo demora alguns minutos, porque o MelonLoader gera os 
 
 **Multiplayer:** as configs marcadas "do host" são enviadas pelo host para todos (via dados do lobby da Steam) e aparecem travadas para os outros jogadores durante a sessão; o cfg de cada um não é alterado. As "pessoais" cada um ajusta a seu gosto.
 
-Próximos: Minimap, Robbery. Armas/roupas com modelos 3D próprios exigiriam AssetBundles feitos na Unity.
+Armas/roupas com modelos 3D próprios exigiriam AssetBundles feitos na Unity.
 
 ## Desenvolvimento
 

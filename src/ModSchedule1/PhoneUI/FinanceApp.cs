@@ -64,18 +64,18 @@ public sealed class FinanceApp : PhoneApp
 
         // cabeçalho: título à esquerda, saldos à direita
         var header = Ui.Child("Header", container.transform);
-        Pin(header, 0, 58);
+        Ui.Pin(header, 0, 58);
         header.AddComponent<Image>().color = Color.Lerp(Ui.Native.Background, Color.black, 0.3f);
         var title = Ui.Text(header.transform, "Finanças", 26, bold: true);
         title.color = Ui.Native.Accent;
-        Fill(title, 20, 0);
+        Ui.Fill(title, 20, 0);
         _summary = Ui.Text(header.transform, "", 17, anchor: TextAnchor.MiddleRight);
         _summary.supportRichText = true;
-        Fill(_summary, 0, 20);
+        Ui.Fill(_summary, 0, 20);
 
         // abas: largura igual, a selecionada em destaque
         var bar = Ui.Child("Tabs", container.transform);
-        Pin(bar, 58, 50);
+        Ui.Pin(bar, 58, 50);
         bar.AddComponent<Image>().color = Color.Lerp(Ui.Native.Background, Color.black, 0.15f);
         var h = bar.AddComponent<HorizontalLayoutGroup>();
         h.padding = new RectOffset(10, 10, 7, 7);
@@ -109,25 +109,6 @@ public sealed class FinanceApp : PhoneApp
     // ---------- estrutura ----------
 
     /// <summary>Faixa de largura total presa no topo do app (cabeçalho, barra de abas).</summary>
-    private static void Pin(GameObject go, float top, float height)
-    {
-        var rt = go.GetComponent<RectTransform>();
-        rt.anchorMin = new Vector2(0, 1);
-        rt.anchorMax = new Vector2(1, 1);
-        rt.pivot = new Vector2(0.5f, 1);
-        rt.anchoredPosition = new Vector2(0, -top);
-        rt.sizeDelta = new Vector2(0, height);
-    }
-
-    private static void Fill(Text t, float left, float right)
-    {
-        var rt = t.GetComponent<RectTransform>();
-        rt.anchorMin = Vector2.zero;
-        rt.anchorMax = Vector2.one;
-        rt.offsetMin = new Vector2(left, 0);
-        rt.offsetMax = new Vector2(-right, 0);
-    }
-
     private GameObject Page(Transform list, int index)
     {
         var page = Ui.Child("Page_" + TabNames[index], list);

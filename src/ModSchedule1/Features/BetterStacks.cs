@@ -370,6 +370,9 @@ public sealed class BetterStacks : Feature<BetterStacks>
         private static void Postfix(ItemDefinition item) => I.Guard("AddToRegistry", () => I.ApplyTo(item));
     }
 
+    /// <summary>Multiplicador que as mixers colocadas recebem no Awake (o livro de receitas lê o prefab, sem ele).</summary>
+    public int MixCapacity => Active ? System.Math.Max(1, _mixCapacity.Value) : 1;
+
     // Awake roda antes de InitializeGridItem montar a config do funcionário (slider de quantidade usa MaxMixQuantity).
     // Velocidade da mixing station ficou no StationSpeed.
     [HarmonyPatch(typeof(MixingStation), nameof(MixingStation.Awake))]

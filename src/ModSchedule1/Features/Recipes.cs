@@ -14,13 +14,13 @@ namespace ModSchedule1.Features;
 
 /// <summary>
 /// Receita COMPLETA (desde a droga base) no painel de detalhes do app nativo de produtos do celular;
-/// o jogo mostra só o último passo da mistura.
+/// o jogo mostra só o último passo da mistura. O livro de receitas (F8) está em RecipeBook.cs.
 /// </summary>
-public sealed class Recipes : Feature<Recipes>
+public sealed partial class Recipes : Feature<Recipes>
 {
     public override string Id => "Recipes";
     public override string Name => "Recipe List";
-    public override string Description => "Receita completa de cada mistura no app de produtos do celular.";
+    public override string Description => "Livro de receitas (F8) com tudo o que dá para produzir, em abas, e receita completa de cada mistura no app de produtos do celular.";
     public override bool Shared => false;   // pessoal: cada jogador usa a própria config
 
     private Text? _chainText;
@@ -56,29 +56,56 @@ public sealed class Recipes : Feature<Recipes>
 
     public readonly record struct Step(string From, string Mixer, string To);
 
+    /// <summary>Menor cadeia de mistura até o produto (vazia = droga base ou receita desconhecida).</summary>
+    public static List<Step> Chain(ProductDefinition product) =>
+        AllChains().TryGetValue(product.ID, out var chain) ? chain : new List<Step>();
+
     /// <summary>
-    /// Menor cadeia de mistura até o produto. Cada StationRecipe é um passo (produto + ingrediente → resultado);
-    /// a ordem dos 2 ingredientes inverte após load/replicação, então o "produto" é o que for ProductDefinition.
-    /// Misturas podem formar ciclo (resultado que já existia): visited corta.
+    /// Menor cadeia de mistura até cada produto: busca em largura a partir das drogas base. Cada StationRecipe é um passo
+    /// (produto + ingrediente -> resultado); a ordem dos 2 ingredientes inverte após load/replicação, então o "produto" é
+    /// o que for ProductDefinition. O jogo grava também misturas que não mudam nada (X + M -> X): não contam como receita,
+    /// e produtos que só aparecem em ciclos ficam de fora. Base = não foi criado por mistura (lista vazia), mesmo que
+    /// alguma mistura dê nele (mapa de mistura aleatório).
     /// </summary>
-    public static List<Step> Chain(ProductDefinition product, HashSet<string>? visited = null)
+    public static Dictionary<string, List<Step>> AllChains()
     {
-        visited ??= new HashSet<string>();
-        var recipes = product.Recipes;
-        if (recipes == null || recipes.Count == 0 || !visited.Add(product.ID)) return new List<Step>();
-        List<Step>? best = null;
-        for (int i = 0; i < recipes.Count; i++)
+        var chains = new Dictionary<string, List<Step>>();
+        if (!ProductManager.InstanceExists) return chains;
+        var all = ProductManager.Instance.AllProducts;
+        var created = new HashSet<string>();
+        var made = ProductManager.Instance.createdProducts;
+        for (int i = 0; made != null && i < made.Count; i++) if (made[i] != null) created.Add(made[i].ID);
+        var next = new Dictionary<string, List<(string To, Step Step)>>();   // origem -> o que sai dela
+        var queue = new Queue<string>();
+        for (int i = 0; i < all.Count; i++)
         {
-            var r = recipes[i];
-            if (r == null || r.Ingredients.Count < 2) continue;
-            int srcIndex = r.Ingredients[0].Item?.TryCast<ProductDefinition>() != null ? 0 : 1;
-            var src = r.Ingredients[srcIndex].Item?.TryCast<ProductDefinition>();
-            var mixer = r.Ingredients[1 - srcIndex].Item;
-            if (src == null || mixer == null) continue;
-            var chain = Chain(src, new HashSet<string>(visited));
-            chain.Add(new Step(src.Name, mixer.Name, product.Name));
-            if (best == null || chain.Count < best.Count) best = chain;
+            var product = all[i];
+            if (product == null) continue;
+            var recipes = product.Recipes;
+            for (int j = 0; recipes != null && j < recipes.Count; j++)
+            {
+                var r = recipes[j];
+                if (r == null || r.Ingredients.Count < 2) continue;
+                int srcIndex = r.Ingredients[0].Item?.TryCast<ProductDefinition>() != null ? 0 : 1;
+                var src = r.Ingredients[srcIndex].Item?.TryCast<ProductDefinition>();
+                var mixer = r.Ingredients[1 - srcIndex].Item;
+                if (src == null || mixer == null || src.ID == product.ID) continue;
+                if (!next.TryGetValue(src.ID, out var outs)) next[src.ID] = outs = new List<(string, Step)>();
+                outs.Add((product.ID, new Step(src.Name, mixer.Name, product.Name)));
+            }
+            if (!created.Contains(product.ID) && chains.TryAdd(product.ID, new List<Step>())) queue.Enqueue(product.ID);
         }
-        return best ?? new List<Step>();
+        while (queue.Count > 0)
+        {
+            var id = queue.Dequeue();
+            if (!next.TryGetValue(id, out var outs)) continue;
+            foreach (var (to, step) in outs)
+            {
+                if (chains.ContainsKey(to)) continue;
+                chains[to] = new List<Step>(chains[id]) { step };
+                queue.Enqueue(to);
+            }
+        }
+        return chains;
     }
 }
