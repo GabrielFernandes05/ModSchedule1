@@ -40,7 +40,7 @@ A primeira abertura do jogo demora alguns minutos, porque o MelonLoader gera os 
 | Compass Distances | Distância de todos os marcadores na bússola | pessoal |
 | Auto Clear Completed Deals | Esconde conversas de clientes sem negócio pendente | pessoal |
 | Dealers+ | Coletar dinheiro no app de dealers do jogo | pessoal |
-| Recipe List | **F8** abre o livro de receitas em abas: produtos (efeitos, valor e receita completa), todas as misturas possíveis de cada droga base ordenadas por lucro (até N ingredientes, configurável), ingredientes, efeitos, química, estações (forno, caldeirão, secador, prensa) e cultivo, com os tempos já com o mod e as melhorias. Também mostra a receita completa no app de produtos | pessoal |
+| Recipe List | **F8** abre o livro de receitas em abas: produtos (efeitos, valor e receita completa), todas as misturas possíveis de cada droga base por lucro ou valor final, com filtro de quantos ingredientes e de quais ingredientes (tem todos / só eles / sem bloqueados por rank), ingredientes, efeitos, química, estações (forno, caldeirão, secador, prensa) e cultivo, com os tempos já com o mod e as melhorias. Também mostra a receita completa no app de produtos | pessoal |
 | DeliveryApp++ | Favoritos e pedidos recorrentes no app Delivery do jogo | pessoal |
 | Bank + Laundry | App **Finanças** no celular, em abas: Banco, Lavagem, Fornecedores (pagar dívida na hora), Dealers (coletar, ver estoque e abrir o inventário do dealer à distância), Melhorias e Histórico | pessoal |
 | More Guns | Submetralhadora, pistola de pente estendido, Magnum e escopeta automática no Stan (visual das armas do jogo) | do host |
@@ -51,7 +51,7 @@ A primeira abertura do jogo demora alguns minutos, porque o MelonLoader gera os 
 | Clientes em potencial | Bola rosa sobre a cabeça de quem já pode virar cliente (mesma regra do marcador do mapa: conhece um cliente seu e a região está liberada) | pessoal |
 | Fornecedores: pagar dívida | Pagar na hora: app Finanças > Fornecedores. Esta opção liga o **automático** (desligado por padrão): deposita no esconderijo à distância e o jogo abate como se você tivesse ido lá | pessoal |
 | Entregas rápidas | Entregas das lojas (app Delivery) chegam na hora e o dead drop dos fornecedores em 1 minuto de jogo (pela chegada normal do jogo: doca livre, caminhão, mensagem) | só host |
-| Melhorias | Compradas no app Finanças (só o host, pelo banco): **Crescimento** até 2x (plantas e cogumelos), **Lavagem** até 3x e cada mesa até 3x (forno, mixer, química, caldeirão, secador, embalagem dos funcionários). Nada acelera sem comprar; ficam salvas por save | do host |
+| Melhorias | Compradas no app Finanças (só o host, pelo banco): 3x, 6x e 10x em **Crescimento** (plantas e cogumelos), **Lavagem** e cada mesa (forno, mixer, química, caldeirão, secador, embalagem dos funcionários). Nada acelera sem comprar; ficam salvas por save | do host |
 | Dealers mandam mensagem | Cada venda ("vendi 2x OG Kush pra Fulano por $X"), aviso de produto acabando e resumo do dia à meia-noite, no app Messages | só host |
 | Relógio e XP na tela | Hora, dia e barra de XP do rank sempre visíveis, logo abaixo da bússola (ou num canto) | pessoal |
 

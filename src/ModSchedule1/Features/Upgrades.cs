@@ -33,16 +33,16 @@ public sealed class Upgrades : Feature<Upgrades>
         public int Max => Mult.Length - 1;
     }
 
-    private static readonly float[] StationMult = { 1f, 1.5f, 2f, 3f };
+    private static readonly float[] Speeds = { 1f, 3f, 6f, 10f };   // nível salvo é o índice: quem já comprou ganha o novo valor
     private static readonly int[] StationPrice = { 0, 8000, 20000, 50000 };
-    public static readonly Track Growth = new("Growth", "Crescimento", "Plantas e cogumelos crescem", new[] { 1f, 1.25f, 1.5f, 2f }, new[] { 0, 15000, 40000, 90000 });
-    public static readonly Track Laundering = new("Laundering", "Lavagem", "A lavagem termina", new[] { 1f, 1.5f, 2f, 3f }, new[] { 0, 10000, 30000, 75000 });
-    public static readonly Track Oven = new("Oven", "Forno", "O forno cozinha", StationMult, StationPrice);
-    public static readonly Track Mixing = new("Mixing", "Mixer", "O mixer mistura", StationMult, StationPrice);
-    public static readonly Track Chemistry = new("Chemistry", "Estação de química", "A química cozinha", StationMult, StationPrice);
-    public static readonly Track Cauldron = new("Cauldron", "Caldeirão", "O caldeirão cozinha", StationMult, StationPrice);
-    public static readonly Track Drying = new("Drying", "Secador", "O secador seca", StationMult, StationPrice);
-    public static readonly Track Packaging = new("Packaging", "Embalagem", "Funcionários embalam", StationMult, StationPrice);
+    public static readonly Track Growth = new("Growth", "Crescimento", "Plantas e cogumelos crescem", Speeds, new[] { 0, 15000, 40000, 90000 });
+    public static readonly Track Laundering = new("Laundering", "Lavagem", "A lavagem termina", Speeds, new[] { 0, 10000, 30000, 75000 });
+    public static readonly Track Oven = new("Oven", "Forno", "O forno cozinha", Speeds, StationPrice);
+    public static readonly Track Mixing = new("Mixing", "Mixer", "O mixer mistura", Speeds, StationPrice);
+    public static readonly Track Chemistry = new("Chemistry", "Estação de química", "A química cozinha", Speeds, StationPrice);
+    public static readonly Track Cauldron = new("Cauldron", "Caldeirão", "O caldeirão cozinha", Speeds, StationPrice);
+    public static readonly Track Drying = new("Drying", "Secador", "O secador seca", Speeds, StationPrice);
+    public static readonly Track Packaging = new("Packaging", "Embalagem", "Funcionários embalam", Speeds, StationPrice);
     public static readonly Track[] All = { Growth, Laundering, Oven, Mixing, Chemistry, Cauldron, Drying, Packaging };
 
     /// <summary>Níveis de um save. Growth/Laundering são do formato da 0.13.0 (migrados para Tracks ao carregar).</summary>

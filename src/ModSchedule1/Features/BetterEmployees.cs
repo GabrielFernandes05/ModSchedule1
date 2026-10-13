@@ -31,8 +31,8 @@ public sealed class BetterEmployees : Feature<BetterEmployees>
     private Pref<float> _workSpeed = null!, _walkSpeed = null!, _wage = null!;
     private Pref<int> _botanistPots = null!, _chemistStations = null!, _handlerStations = null!, _cleanerBins = null!,
         _capacity = null!, _capacityMin = null!, _routes = null!;
-    private Pref<bool> _autoPay = null!;
-    private bool _dumpedRoutes;
+    private Pref<bool> _autoPay = null!, _routeScroll = null!;
+    private bool _dumpedRoutes, _dumpedRouteScroll;
     private static float _routeScrollY;   // escolher origem/destino recria a prancheta: volta para onde estava
     // vagas originais por imóvel (PropertyCode), lidas na 1ª vez que o vemos: cada cena recria os imóveis com o valor do
     // jogo e só o mod mexe nele
@@ -53,6 +53,8 @@ public sealed class BetterEmployees : Feature<BetterEmployees>
         _capacityMin = Setting("CapacityMin", 0, "Vagas por imóvel (mínimo fixo)",
             "0 = só o multiplicador. Ex.: 20 = todo imóvel que aceita funcionários fica com pelo menos 20 vagas. Muda na hora", min: 0, max: 50);
         _routes = Setting("HandlerMaxRoutes", 10, "Handler: rotas por funcionário", "Jogo: 5", min: 1, max: 20);
+        _routeScroll = Setting("HandlerRouteScroll", true, "Handler: lista de rotas rolável",
+            "Desligado = linhas como antes da 0.15 (as rotas extras passam da prancheta). Vale na próxima vez que abrir", shared: false);
         Enabled.Changed += ApplyCapacity;
         _capacity.Changed += ApplyCapacity;
         _capacityMin.Changed += ApplyCapacity;
@@ -234,22 +236,34 @@ public sealed class BetterEmployees : Feature<BetterEmployees>
         private static void Prefix(RouteListFieldUI __instance) => I.Guard("RouteListFieldUI.Start", () =>
         {
             var entries = __instance.RouteEntries;
-            if (entries == null || entries.Length == 0 || entries.Length >= I._routes.Value) return;
-            NativeUi.DumpOnce(ref I._dumpedRoutes, entries[0].transform.parent, "lista de rotas do handler", 2);
-            Transform content;
-            try { content = RouteScroll(__instance, entries); }
-            catch (Exception e)   // layout do prefab inesperado: sem rolagem, mas com as linhas (como antes)
-            {
-                I.Log.Error($"lista rolável de rotas: {e}");
-                content = entries[0].transform.parent;
-            }
-            var grown = new Il2CppReferenceArray<RouteEntryUI>(I._routes.Value);
-            for (int i = 0; i < grown.Length; i++)
-                grown[i] = i < entries.Length ? entries[i]
-                    : Object.Instantiate(entries[0].gameObject, content, false).GetComponent<RouteEntryUI>();
-            __instance.RouteEntries = grown;
             var fields = __instance.Fields;
-            if (fields != null && fields.Count > 0 && fields[0] != null) __instance.Refresh(fields[0].Routes);
+            var field = fields != null && fields.Count > 0 ? fields[0] : null;
+            // config pode ter baixado depois do AssignProperty (MaxRoutes antigo) ou do save/host (rotas a mais carregadas sem
+            // limite): toda rota existente precisa de uma linha
+            int want = Math.Max(I._routes.Value, field != null ? Math.Max(field.MaxRoutes, field.Routes != null ? field.Routes.Count : 0) : 0);
+            if (entries == null || entries.Length == 0 || entries.Length >= want) return;
+            var list = entries[0].transform.parent;
+            NativeUi.DumpOnce(ref I._dumpedRoutes, list, "lista de rotas do handler", 2);
+            var content = list;
+            if (I._routeScroll.Value)
+                try { content = RouteScroll(__instance, entries); }
+                catch (Exception e) { I.Log.Error($"lista rolável de rotas: {e}"); }   // fica a lista do jogo (como antes)
+            var add = __instance.AddButton;
+            var grown = new Il2CppReferenceArray<RouteEntryUI>(want);
+            for (int i = 0; i < grown.Length; i++)
+            {
+                if (i < entries.Length) { grown[i] = entries[i]; continue; }
+                var clone = Object.Instantiate(entries[0].gameObject, content, false);
+                if (add != null && add.transform.parent == content) clone.transform.SetSiblingIndex(add.transform.GetSiblingIndex());   // acima do "+"
+                grown[i] = clone.GetComponent<RouteEntryUI>();
+            }
+            __instance.RouteEntries = grown;
+            if (field != null) __instance.Refresh(field.Routes);
+            if (content != list && Core.DebugLogging && !I._dumpedRouteScroll)   // prova no log: tamanhos reais da lista rolável
+            {
+                LayoutRebuilder.ForceRebuildLayoutImmediate(content.GetComponent<RectTransform>());
+                NativeUi.DumpOnce(ref I._dumpedRouteScroll, list, "lista de rotas rolável (após layout)", 5);
+            }
         });
 
         // Depois do Start (que liga o botão ao AddClicked): a rota nova aparece no fim, então rola até lá. A posição fica
@@ -285,30 +299,52 @@ public sealed class BetterEmployees : Feature<BetterEmployees>
     {
         var first = entries[0].GetComponent<RectTransform>();
         var list = first.parent;
+        var listRt = list.GetComponent<RectTransform>();
         bool addInList = ui.AddButton != null && ui.AddButton.transform.parent == list;
         float rowH = first.rect.height > 1f ? first.rect.height : LayoutUtility.GetPreferredHeight(first);
+        var group = list.GetComponent<LayoutGroup>();
         var vlg = list.GetComponent<VerticalLayoutGroup>();
         float gap = vlg != null ? vlg.spacing
             : entries.Length > 1 ? Mathf.Max(0f, Mathf.Abs(first.localPosition.y - entries[1].transform.localPosition.y) - rowH) : 0f;
         int rows = Math.Max(1, entries.Length - (addInList ? 1 : 0));
         float height = rows * rowH + (rows - 1) * gap;
+        // largura da lista, não da linha: no Start a linha ainda não passou pelo layout e mede 0 (log: "Entry size=0x30"),
+        // e uma lista de largura 0 recorta todas as linhas (0.15.0: rotas sumiram e o "+" parecia não fazer nada)
+        float width = listRt.rect.width - (group != null ? group.padding.horizontal : 0);
 
         var slot = Ui.Child("MS1_RouteScroll", list).GetComponent<RectTransform>();
         slot.SetSiblingIndex(first.GetSiblingIndex());
         slot.pivot = new Vector2(0f, 1f);
-        slot.sizeDelta = new Vector2(first.rect.width, height);
-        if (list.GetComponent<LayoutGroup>() != null)
+        slot.sizeDelta = new Vector2(width, height);
+        if (group != null)
         {
             var le = slot.gameObject.AddComponent<LayoutElement>();
             le.minHeight = le.preferredHeight = height;
             le.flexibleHeight = 0f;
+            le.flexibleWidth = 1f;   // o grupo do jogo controla a largura sem esticar: sem isto ele dá 0 à lista
         }
         else slot.localPosition = first.localPosition + new Vector3(first.rect.xMin, first.rect.yMax, 0f);   // canto sup. esq. da 1ª linha
 
         var content = Ui.ScrollList(slot, 0f);
+        // confere antes de mexer nas linhas: tamanho degenerado = fica a lista do jogo (linhas visíveis, como antes da 0.15)
+        LayoutRebuilder.ForceRebuildLayoutImmediate(listRt);
+        var view = content.parent.GetComponent<RectTransform>().rect;
+        if (view.width < 1f || view.height < 1f)
+        {
+            I.Log.Warn($"lista rolável de rotas ficou {view.width:0}x{view.height:0}: usando a lista do jogo");
+            slot.gameObject.SetActive(false);   // sai do layout já neste frame
+            Object.Destroy(slot.gameObject);
+            return list;
+        }
         var cv = content.GetComponent<VerticalLayoutGroup>();
         cv.padding = new RectOffset(0, 0, 0, 0);
         cv.spacing = gap;
+        if (vlg != null)   // linhas com a mesma largura/posição que o jogo daria (a linha do prefab mede 0 e os filhos vazam)
+        {
+            cv.childAlignment = vlg.childAlignment;
+            cv.childControlWidth = vlg.childControlWidth;
+            cv.childForceExpandWidth = vlg.childForceExpandWidth;
+        }
         content.parent.parent.GetComponent<ScrollRect>().movementType = ScrollRect.MovementType.Clamped;
         // altura fixa por linha (as âncoras do prefab podem ser esticadas; o layout precisa de um tamanho real)
         for (int i = 0; i < entries.Length; i++)

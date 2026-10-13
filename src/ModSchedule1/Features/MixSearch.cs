@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Numerics;
 
 namespace ModSchedule1.Features;
 
@@ -12,7 +13,7 @@ public static class MixSearch
 {
     public const int MaxEffects = 8;   // EffectMixCalculator.MAX_PROPERTIES
 
-    public sealed record Node(int[] Effects, Node? Parent, int Mixer, float Cost, int Value, int Steps)
+    public sealed record Node(int[] Effects, Node? Parent, int Mixer, float Cost, int Value, int Steps, ulong Used)
     {
         public float Profit => Value - Cost;
 
@@ -45,30 +46,39 @@ public static class MixSearch
 
     /// <summary>
     /// Busca em largura por número de ingredientes; devolve a receita mais barata de cada conjunto de efeitos
-    /// alcançado (sem a base), da que mais lucra para a que menos.
+    /// alcançado (sem a base), da que mais lucra para a que menos. Os filtros entram na busca, não depois dela:
+    /// a receita mais barata de um conjunto pode não usar o ingrediente pedido mesmo existindo outra que usa.
+    /// allowed = bits dos ingredientes que podem entrar; required = bits dos que a receita tem que ter.
     /// </summary>
     public static List<Node> Search(int[] start, int[,] react, int[] adds, float[] price, Func<int[], int> value,
-        int maxSteps, int beam)
+        int maxSteps, int beam, ulong allowed = ulong.MaxValue, ulong required = 0)
     {
-        var seen = new HashSet<ulong> { Key(start) };   // a ordem dos efeitos muda as próximas reações
+        // a ordem dos efeitos muda as próximas reações; e o mesmo estado com/sem os obrigatórios são caminhos diferentes
+        var seen = new HashSet<(ulong, ulong)> { (Key(start), 0) };
         var best = new Dictionary<ulong, Node>();       // mesmo conjunto = mesmo produto/preço
-        var layer = new List<Node> { new(start, null, -1, 0f, value(start), 0) };
+        var layer = new List<Node> { new(start, null, -1, 0f, value(start), 0, 0) };
         for (int step = 1; step <= maxSteps && layer.Count > 0; step++)
         {
             var next = new List<Node>();
             foreach (var n in layer)
                 for (int m = 0; m < adds.Length; m++)
                 {
+                    if ((allowed >> m & 1) == 0) continue;
                     var fx = Mix(n.Effects, m, react, adds);
-                    if (!seen.Add(Key(fx))) continue;
-                    var child = new Node(fx, n, m, n.Cost + price[m], value(fx), step);
+                    ulong used = n.Used | 1UL << m;
+                    if (!seen.Add((Key(fx), used & required))) continue;
+                    var child = new Node(fx, n, m, n.Cost + price[m], value(fx), step, used);
                     next.Add(child);
+                    if ((used & required) != required) continue;
                     ulong mask = Mask(fx);
                     if (!best.TryGetValue(mask, out var old) || child.Cost < old.Cost) best[mask] = child;
                 }
-            // ponytail: feixe — exato enquanto o passo tem até `beam` estados (~3 ingredientes); depois segue só pelos
-            // que mais lucram. Mistura que só fica boa depois de passar por uma ruim pode escapar; subir o feixe resolve.
-            layer = next.Count > beam ? next.OrderByDescending(c => c.Profit).Take(beam).ToList() : next;
+            // ponytail: feixe — exato enquanto o passo tem até `beam` estados (~3 ingredientes); depois segue pelos que
+            // já têm mais obrigatórios e, entre eles, pelos que mais lucram. Mistura que só fica boa depois de passar
+            // por uma ruim pode escapar; subir o feixe resolve.
+            layer = next.Count > beam
+                ? next.OrderByDescending(c => BitOperations.PopCount(c.Used & required)).ThenByDescending(c => c.Profit).Take(beam).ToList()
+                : next;
         }
         best.Remove(Mask(start));
         return best.Values.OrderByDescending(n => n.Profit).ThenBy(n => n.Steps).ToList();

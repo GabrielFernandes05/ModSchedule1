@@ -1,11 +1,16 @@
 using System;
 using System.Collections.Generic;
 using HarmonyLib;
+using Il2CppScheduleOne.Employees;
+using Il2CppScheduleOne.NPCs;
+using Il2CppScheduleOne.NPCs.Behaviour;
 using Il2CppScheduleOne.ObjectScripts;
 using Il2CppScheduleOne.StationFramework;
+using Il2CppScheduleOne.Tools;
 using Il2CppScheduleOne.UI.Stations;
 using MelonLoader;
 using UnityEngine;
+using NpcBehaviour = Il2CppScheduleOne.NPCs.Behaviour.Behaviour;
 
 namespace ModSchedule1.Features;
 
@@ -26,7 +31,8 @@ public sealed class StationSpeed : Feature<StationSpeed>
     private readonly List<StationRecipe> _recipes = new();
     // Mesas que só leem a velocidade ao nascer: guardamos o valor original para reaplicar quando a config/melhoria muda.
     private readonly List<(Cauldron Station, int Original)> _cauldrons = new();
-    private readonly List<(MixingStation Station, int Original)> _mixers = new();
+    private readonly List<Mixer> _mixers = new();
+    private sealed class Mixer { public MixingStation Station = null!; public int Original; public float Carry; }
     private readonly List<(PackagingStation Station, float Original)> _packagers = new();
 
     protected override void OnInit()
@@ -69,7 +75,7 @@ public sealed class StationSpeed : Feature<StationSpeed>
         _cauldrons.RemoveAll(c => c.Station == null);
         foreach (var (station, original) in _cauldrons) station.CookTime = Scale(original, Mult(_cauldron, Upgrades.Cauldron));
         _mixers.RemoveAll(m => m.Station == null);
-        foreach (var (station, original) in _mixers) station.MixTimePerItem = Scale(original, Mult(_mixing, Upgrades.Mixing));
+        foreach (var m in _mixers) m.Station.MixTimePerItem = Scale(m.Original, MixingSpeed);
         _packagers.RemoveAll(p => p.Station == null);
         foreach (var (station, original) in _packagers) station.PackagerEmployeeSpeedMultiplier = original * Mult(_packaging, Upgrades.Packaging);
         Log.Debug($"velocidade reaplicada: {_cauldrons.Count} caldeirões, {_mixers.Count} mixers, {_packagers.Count} embaladoras");
@@ -137,11 +143,76 @@ public sealed class StationSpeed : Feature<StationSpeed>
         private static void Postfix(MixingStation __instance) => Run("MixingStation.Awake", () =>
         {
             int old = __instance.MixTimePerItem;
-            I._mixers.Add((__instance, old));
-            __instance.MixTimePerItem = Scale(old, I.Mult(I._mixing, Upgrades.Mixing));
+            I._mixers.Add(new Mixer { Station = __instance, Original = old });
+            __instance.MixTimePerItem = Scale(old, I.MixingSpeed);
             I.Log.Debug($"mixing station: {old} -> {__instance.MixTimePerItem} min/item");
         });
     }
+
+    // Mixer: o tempo é um inteiro por item (3 min no jogo), então 3 / 2 = 1,5 virava 2 e nada passava de 3x (mínimo de
+    // 1 min/item). MixTimePerItem fica com o inteiro mais próximo (o relógio da mesa mostra quase o tempo real) e cada
+    // minuto conta o que falta para o tempo exato, com a sobra guardada por mesa. Mk2 chama este pelo base.OnTimePass;
+    // dormir também passa por aqui (onTimeSkip).
+    [HarmonyPatch(typeof(MixingStation), nameof(MixingStation.OnTimePass))]
+    private static class MixingTimePatch
+    {
+        private static void Prefix(MixingStation __instance, ref int minutes)
+        {
+            if (I.Faulted || __instance.CurrentMixOperation == null) return;
+            try
+            {
+                var ptr = __instance.Pointer;
+                var m = I._mixers.Find(x => x.Station.Pointer == ptr);
+                if (m == null || m.Original <= 0) return;
+                float rate = I.MixingSpeed * __instance.MixTimePerItem / m.Original;
+                if (Math.Abs(rate - 1f) < 0.001f) return;
+                float step = minutes * rate + m.Carry;
+                minutes = (int)step;
+                m.Carry = step - minutes;
+            }
+            catch (Exception e) { I.Fault("MixingStation.OnTimePass", e); }
+        }
+    }
+
+    // Funcionário no mixer e no secador: antes da operação começar ele coloca os itens um a um (1 s real por item /
+    // velocidade de trabalho). Com a capacidade do BetterStacks isso vira minutos e só a operação tinha a melhoria; o
+    // jogador pula essa fase. Enquanto ele coloca, a velocidade da mesa entra na velocidade de trabalho dele (a animação
+    // também usa). RpcLogic (o wrapper da RPC é embutido) roda uma vez por início, no host e nos clientes.
+    private const string BoostLabel = "ModSchedule1.Mesa";
+
+    [HarmonyPatch(typeof(StartMixingStationBehaviour), nameof(StartMixingStationBehaviour.RpcLogic___StartCook_2166136261))]
+    private static class MixerWorkPatch
+    {
+        private static void Prefix(StartMixingStationBehaviour __instance) => Boost(__instance.Npc, I.MixingSpeed);
+    }
+
+    [HarmonyPatch(typeof(StartDryingRackBehaviour), nameof(StartDryingRackBehaviour.RpcLogic___BeginAction_2166136261))]
+    private static class DryingWorkPatch
+    {
+        private static void Prefix(StartDryingRackBehaviour __instance) => Boost(__instance.Npc, I.DryingSpeed);
+    }
+
+    // Deactivate fecha todo início (o mixer termina com Deactivate_Networked, o secador com Disable); Pause cobre a interrupção.
+    [HarmonyPatch]
+    private static class WorkEndPatch
+    {
+        private static IEnumerable<System.Reflection.MethodBase> TargetMethods()
+        {
+            yield return AccessTools.Method(typeof(StartMixingStationBehaviour), nameof(StartMixingStationBehaviour.Deactivate));
+            yield return AccessTools.Method(typeof(StartMixingStationBehaviour), nameof(StartMixingStationBehaviour.Pause));
+            yield return AccessTools.Method(typeof(StartDryingRackBehaviour), nameof(StartDryingRackBehaviour.Deactivate));
+            yield return AccessTools.Method(typeof(StartDryingRackBehaviour), nameof(StartDryingRackBehaviour.Pause));
+        }
+
+        private static void Postfix(NpcBehaviour __instance) => Run("fim do trabalho na mesa", () =>
+            __instance.Npc?.TryCast<Employee>()?.WorkSpeedController.Remove(BoostLabel));
+    }
+
+    private static void Boost(NPC? npc, float speed) => Run("funcionário na mesa", () =>
+    {
+        if (Math.Abs(speed - 1f) > 0.001f && npc?.TryCast<Employee>() is { } e)
+            e.WorkSpeedController.Add(new FloatStack.StackEntry(BoostLabel, speed, FloatStack.EStackMode.Multiplicative, 0));
+    });
 
     // Packaging station (e Mk2): só o trabalho do funcionário tem duração; o do jogador é minigame.
     [HarmonyPatch(typeof(PackagingStation), nameof(PackagingStation.Awake))]

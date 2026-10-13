@@ -35,13 +35,22 @@ public sealed partial class Recipes
     private const string UiName = "MS1_RecipeBook";
     private static readonly string[] TabNames = { "Produtos", "Misturas", "Ingredientes", "Efeitos", "Química", "Estações", "Cultivo" };
     private static int _tab;   // lembra a última aba aberta
-    private static int _mixBase;   // droga base escolhida na aba Misturas
     private const int MixPage = 50;
     private const int MixBeam = 5000;
 
-    /// <summary>Misturas de uma base, calculadas uma vez por cena (o mapa de mistura depende da seed do save).</summary>
-    private sealed record MixResult(List<MixSearch.Node> Mixes, Effect[] Effects, Dictionary<string, int> Index, PropertyItemDefinition[] Mixers);
-    private readonly Dictionary<string, MixResult> _mixes = new();
+    // filtros da aba Misturas (lembrados entre aberturas)
+    private static int _mixBase;           // droga base escolhida
+    private static int _mixMax;            // até N ingredientes (0 = o máximo da config)
+    private static bool _mixByValue;       // ordena por valor final em vez de lucro
+    private static bool _mixOnlyPicked;    // marcados: false = a receita tem que ter todos, true = só pode usar eles
+    private static bool _mixHideLocked;    // tira ingredientes que o rank ainda não libera
+    private static readonly HashSet<string> _mixPicked = new();
+
+    /// <summary>Mapa de mistura de uma base em arrays, montado uma vez por cena (depende da seed do save).</summary>
+    private sealed record MixMap(int[] Start, int[,] React, int[] Adds, float[] Price, Func<int[], int> Value,
+        Effect[] Effects, Dictionary<string, int> Index, PropertyItemDefinition[] Mixers);
+    private readonly Dictionary<string, MixMap> _mixMaps = new();
+    private readonly Dictionary<string, List<MixSearch.Node>> _mixes = new();   // busca por base + filtros
     private Pref<int> _mixSteps = null!;
 
     private HotKey _key = null!;
@@ -58,12 +67,12 @@ public sealed partial class Recipes
     {
         _key = new HotKey(Setting("Key", "F8", "Tecla do livro de receitas (nome do KeyCode da Unity)"), KeyCode.F8, Log);
         _mixSteps = Setting("MixSteps", 8, "Misturas: até N ingredientes", "Mais = acha misturas mais longas, mas demora mais para abrir a aba", min: 1, max: 16);
-        _mixSteps.Changed += _mixes.Clear;
+        _mixSteps.Changed += _mixes.Clear;   // a chave inclui os passos, mas libera memória
         Enabled.Changed += () => { if (!Enabled.Value) Close(); };
     }
 
     // o canvas e o State morrem com a cena
-    public override void OnSceneLoaded(string scene) { _book = null; _state = null; _mixes.Clear(); }
+    public override void OnSceneLoaded(string scene) { _book = null; _state = null; _mixMaps.Clear(); _mixes.Clear(); }
 
     public override void OnUpdate()
     {
@@ -285,20 +294,63 @@ public sealed partial class Recipes
         bases = bases.OrderBy(p => (int)p.DrugType).ThenBy(p => p.Name).ToList();
         if (bases.Count == 0) { Note("Produtos ainda não carregaram."); return; }
         _mixBase = Mathf.Clamp(_mixBase, 0, bases.Count - 1);
+        var b = bases[_mixBase];
+        if (!_mixMaps.TryGetValue(b.ID, out var map)) _mixMaps[b.ID] = map = BuildMixMap(b);
+
+        // filtros viram parâmetros da busca: quais ingredientes podem entrar, quais têm que entrar e até quantos
+        int max = _mixSteps.Value, steps = _mixMax > 0 ? Math.Min(_mixMax, max) : max;
+        ulong all = (1UL << map.Mixers.Length) - 1, picked = 0, unlocked = 0;
+        for (int m = 0; m < map.Mixers.Length; m++)
+        {
+            if (_mixPicked.Contains(map.Mixers[m].ID)) picked |= 1UL << m;
+            if (map.Mixers[m].IsUnlocked) unlocked |= 1UL << m;
+        }
+        ulong allowed = (_mixOnlyPicked && picked != 0 ? picked : all) & (_mixHideLocked ? unlocked : all);
+        ulong required = _mixOnlyPicked ? 0 : picked;
 
         var row = Ui.Row(_list, 44);
         for (int i = 0; i < bases.Count; i++)
         {
             int index = i;
-            var (_, label, bg) = Ui.Button(row.transform, bases[i].Name, default, () => { _mixBase = index; Show(_tab); }, 60, 40);
-            var le = bg.GetComponent<LayoutElement>();
-            le.preferredWidth = 0;
-            le.flexibleWidth = 1;
-            if (i == _mixBase) { bg.color = Color.Lerp(Ui.Native.Card, Ui.Native.Accent, 0.7f); label.color = Color.white; }
+            Chip(row, bases[i].Name, i == _mixBase, () => _mixBase = index);
+        }
+        row = Ui.Row(_list, 40);
+        RowLabel(row, "Até quantos ingredientes", 230);
+        for (int i = 1; i <= max; i++)
+        {
+            int n = i;
+            Chip(row, n.ToString(), n == steps, () => _mixMax = n);
+        }
+        row = Ui.Row(_list, 40);
+        RowLabel(row, "Ordenar por", 230);
+        Chip(row, "Lucro", !_mixByValue, () => _mixByValue = false);
+        Chip(row, "Valor final", _mixByValue, () => _mixByValue = true);
+        RowLabel(row, "Marcados", 110);
+        Chip(row, "Tem todos", !_mixOnlyPicked, () => _mixOnlyPicked = false);
+        Chip(row, "Só eles", _mixOnlyPicked, () => _mixOnlyPicked = true);
+        Chip(row, "Sem bloqueados", _mixHideLocked, () => _mixHideLocked = !_mixHideLocked);
+        Chip(row, "Limpar", false, () => { _mixPicked.Clear(); _mixMax = 0; _mixHideLocked = false; });
+        // ingredientes marcáveis, 8 por linha; cinza = o rank ainda não libera
+        for (int m = 0; m < map.Mixers.Length; m++)
+        {
+            if (m % 8 == 0) row = Ui.Row(_list, 40);
+            var mixer = map.Mixers[m];
+            bool on = (picked >> m & 1) == 1;
+            var label = Chip(row, $"{mixer.Name} {Ui.Money(mixer.BasePurchasePrice)}", on,
+                () => { if (!_mixPicked.Remove(mixer.ID)) _mixPicked.Add(mixer.ID); });
+            if (!on && (unlocked >> m & 1) == 0) label.color = Ui.Muted;
         }
 
-        var b = bases[_mixBase];
-        if (!_mixes.TryGetValue(b.ID, out var r)) _mixes[b.ID] = r = SearchMixes(b);
+        string key = $"{b.ID}|{steps}|{allowed}|{required}";
+        if (!_mixes.TryGetValue(key, out var mixes))
+        {
+            if (_mixes.Count >= 8) _mixes.Clear();   // ponytail: guarda só as últimas buscas; cada uma pesa alguns MB
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            _mixes[key] = mixes = MixSearch.Search(map.Start, map.React, map.Adds, map.Price, map.Value, steps, MixBeam, allowed, required);
+            Log.Info($"misturas de {b.Name} ({key}): {mixes.Count} em {watch.ElapsedMilliseconds} ms");
+        }
+        if (_mixByValue) mixes = mixes.OrderByDescending(n => n.Value).ThenByDescending(n => n.Profit).ToList();
+
         // o que você já criou aparece com o nome que deu (mesma droga e mesmos efeitos = mesmo produto no jogo)
         var names = new Dictionary<ulong, string>();
         foreach (var p in created.Values)
@@ -306,42 +358,69 @@ public sealed partial class Recipes
             if (p.DrugType != b.DrugType || p.Properties == null) continue;
             var ids = new List<int>();
             for (int i = 0; i < p.Properties.Count; i++)
-                if (p.Properties[i] != null && r.Index.TryGetValue(p.Properties[i].ID, out var idx)) ids.Add(idx);
+                if (p.Properties[i] != null && map.Index.TryGetValue(p.Properties[i].ID, out var idx)) ids.Add(idx);
             names.TryAdd(MixSearch.Mask(ids), p.Name);
         }
-        Note($"{r.Mixes.Count:N0} misturas diferentes de {b.Name} com até {_mixSteps.Value} ingredientes, da que mais lucra para a que menos. "
+        var filters = new List<string> { $"até {steps} ingrediente{(steps > 1 ? "s" : "")}" };
+        if (picked != 0) filters.Add(_mixOnlyPicked ? "só com os marcados" : "com todos os marcados");
+        if (_mixHideLocked) filters.Add("sem bloqueados por rank");
+        Note($"{mixes.Count:N0} misturas de {b.Name} ({string.Join(", ", filters)}), por {(_mixByValue ? "valor final" : "lucro")}. "
              + $"Lucro = valor de mercado - ingredientes (sem o custo de {b.Name}). Receita = a mais barata para chegar nesses efeitos.");
-        MixCards(r, b, names, 0);
+        if (mixes.Count == 0) Note("Nenhuma mistura com esses filtros.");
+        MixCards(map, mixes, b, names, 0);
+    }
+
+    /// <summary>Botão de filtro: destacado quando ligado; o clique muda o filtro e remonta a aba.</summary>
+    private Text Chip(GameObject row, string text, bool on, Action click)
+    {
+        var (_, label, bg) = Ui.Button(row.transform, text, default, () => { click(); Show(_tab); }, 40, 36);
+        label.fontSize = 15;
+        var le = bg.GetComponent<LayoutElement>();
+        le.preferredWidth = 0;
+        le.flexibleWidth = 1;
+        if (on) { bg.color = Color.Lerp(Ui.Native.Card, Ui.Native.Accent, 0.7f); label.color = Color.white; }
+        return label;
+    }
+
+    private static void RowLabel(GameObject row, string text, float width)
+    {
+        var t = Ui.Text(row.transform, text, 16, anchor: TextAnchor.MiddleRight);
+        t.color = Ui.Muted;
+        var le = t.GetComponent<LayoutElement>();
+        le.flexibleWidth = 0;
+        le.minWidth = le.preferredWidth = width;
     }
 
     /// <summary>Uma página de cards e, se sobrar, um botão que troca a si mesmo pela próxima página.</summary>
-    private void MixCards(MixResult r, ProductDefinition b, Dictionary<ulong, string> names, int from)
+    private void MixCards(MixMap map, List<MixSearch.Node> mixes, ProductDefinition b, Dictionary<ulong, string> names, int from)
     {
-        int to = Math.Min(r.Mixes.Count, from + MixPage);
+        int to = Math.Min(mixes.Count, from + MixPage);
         // rank muda durante o jogo: confere a cada página, igual à loja (cinza = ainda não dá para comprar)
-        var mixers = r.Mixers.Select(m => m.IsUnlocked ? $"<b>{m.Name}</b>"
+        var mixers = map.Mixers.Select(m => m.IsUnlocked ? $"<b>{m.Name}</b>"
             : $"<color=#8a8a8a><b>{m.Name}</b> (rank {FullRank.GetString(m.RequiredRank)})</color>").ToArray();
         for (int i = from; i < to; i++)
         {
-            var n = r.Mixes[i];
-            var card = Entry(b.Icon, string.Join(", ", n.Effects.Select(e => EffectLabel(r.Effects[e]))), $"Lucro {Ui.Money(n.Profit)}");
+            var n = mixes[i];
+            var card = Entry(b.Icon, string.Join(", ", n.Effects.Select(e => EffectLabel(map.Effects[e]))),
+                _mixByValue ? $"Valor {Ui.Money(n.Value)}" : $"Lucro {Ui.Money(n.Profit)}");
             Line(card, $"{i + 1}. {b.Name} + " + string.Join(" + ", n.Mixers().Select(m => mixers[m])));
             float gain = n.Profit - b.MarketValue;
-            Line(card, $"Valor {Ui.Money(n.Value)} · ingredientes {Ui.Money(n.Cost)} · {(gain >= 0 ? "+" : "-")}{Ui.Money(Math.Abs(gain))} sobre vender {b.Name} puro"
+            Line(card, $"{n.Steps} ingrediente{(n.Steps > 1 ? "s" : "")} · valor {Ui.Money(n.Value)} · custo {Ui.Money(n.Cost)} · lucro {Ui.Money(n.Profit)} · "
+                       + $"{(gain >= 0 ? "+" : "-")}{Ui.Money(Math.Abs(gain))} sobre vender {b.Name} puro"
                        + (names.TryGetValue(MixSearch.Mask(n.Effects), out var name) ? $" · já criado: <b>{name}</b>" : ""));
         }
-        if (to >= r.Mixes.Count) return;
+        if (to >= mixes.Count) return;
         GameObject? more = null;
-        more = Ui.Button(_list, $"Mostrar mais ({r.Mixes.Count - to:N0} restantes)", default, () =>
+        more = Ui.Button(_list, $"Mostrar mais ({mixes.Count - to:N0} restantes)", default, () =>
         {
             more!.SetActive(false);
             UnityEngine.Object.Destroy(more);
-            MixCards(r, b, names, to);
+            MixCards(map, mixes, b, names, to);
         }, 400, 44).bg.gameObject;
     }
 
-    /// <summary>Copia o mapa de mistura da droga para arrays e roda <see cref="MixSearch"/>.</summary>
-    private MixResult SearchMixes(ProductDefinition b)
+    /// <summary>Copia o mapa de mistura da droga para arrays (o que <see cref="MixSearch"/> precisa).</summary>
+    private static MixMap BuildMixMap(ProductDefinition b)
     {
         var pm = ProductManager.Instance;
         var map = pm.GetMixerMap(b.DrugType);
@@ -360,7 +439,7 @@ public sealed partial class Recipes
         var adds = mixers.Select(m => Idx(m.Properties[0])).ToArray();
         var start = new List<int>();
         for (int i = 0; b.Properties != null && i < b.Properties.Count; i++) if (b.Properties[i] != null) start.Add(Idx(b.Properties[i]));
-        if (effects.Count > 63) throw new InvalidOperationException($"{effects.Count} efeitos: a busca só cabe até 63");
+        if (effects.Count > 63 || mixers.Count > 63) throw new InvalidOperationException($"{effects.Count} efeitos / {mixers.Count} ingredientes: a busca só cabe até 63");
 
         // mesma conta do EffectMixCalculator: o ingrediente empurra cada efeito no mapa (girado pela seed se o save
         // usa mapas aleatórios); onde o efeito cair em outro, ele vira esse outro
@@ -399,17 +478,15 @@ public sealed partial class Recipes
             return Mathf.RoundToInt(v * k);
         }
 
-        var watch = System.Diagnostics.Stopwatch.StartNew();
-        var mixes = MixSearch.Search(start.ToArray(), react, adds, mixers.Select(m => m.BasePurchasePrice).ToArray(), Value, _mixSteps.Value, MixBeam);
-        Log.Info($"misturas de {b.Name}: {mixes.Count} em {watch.ElapsedMilliseconds} ms");
-        return new MixResult(mixes, effects.ToArray(), index, mixers.ToArray());
+        return new MixMap(start.ToArray(), react, adds, mixers.Select(m => m.BasePurchasePrice).ToArray(), Value,
+            effects.ToArray(), index, mixers.ToArray());
     }
 
     private void BuildMixers()
     {
         var mixers = ProductManager.Instance.ValidMixIngredients;
         foreach (var (station, def) in Stations<MixingStation>())
-            Note($"{def.Name}: até {station.MaxMixQuantity * BetterStacks.I.MixCapacity} por vez, {Dur(Scaled(station.MixTimePerItem, StationSpeed.I.MixingSpeed))} por unidade.");
+            Note($"{def.Name}: até {station.MaxMixQuantity * BetterStacks.I.MixCapacity} por vez, {station.MixTimePerItem / Math.Max(0.01f, StationSpeed.I.MixingSpeed):0.##} min por unidade.");
         Note("Cada ingrediente adiciona um efeito e pode transformar os efeitos que o produto já tem (até 8).");
         for (int i = 0; i < mixers.Count; i++)
         {
