@@ -40,7 +40,7 @@ public sealed partial class Recipes
     private const int MixBeam = 5000;
 
     /// <summary>Misturas de uma base, calculadas uma vez por cena (o mapa de mistura depende da seed do save).</summary>
-    private sealed record MixResult(List<MixSearch.Node> Mixes, Effect[] Effects, Dictionary<string, int> Index, string[] Mixers);
+    private sealed record MixResult(List<MixSearch.Node> Mixes, Effect[] Effects, Dictionary<string, int> Index, PropertyItemDefinition[] Mixers);
     private readonly Dictionary<string, MixResult> _mixes = new();
     private Pref<int> _mixSteps = null!;
 
@@ -318,11 +318,14 @@ public sealed partial class Recipes
     private void MixCards(MixResult r, ProductDefinition b, Dictionary<ulong, string> names, int from)
     {
         int to = Math.Min(r.Mixes.Count, from + MixPage);
+        // rank muda durante o jogo: confere a cada página, igual à loja (cinza = ainda não dá para comprar)
+        var mixers = r.Mixers.Select(m => m.IsUnlocked ? $"<b>{m.Name}</b>"
+            : $"<color=#8a8a8a><b>{m.Name}</b> (rank {FullRank.GetString(m.RequiredRank)})</color>").ToArray();
         for (int i = from; i < to; i++)
         {
             var n = r.Mixes[i];
             var card = Entry(b.Icon, string.Join(", ", n.Effects.Select(e => EffectLabel(r.Effects[e]))), $"Lucro {Ui.Money(n.Profit)}");
-            Line(card, $"{i + 1}. {b.Name} + " + string.Join(" + ", n.Mixers().Select(m => $"<b>{r.Mixers[m]}</b>")));
+            Line(card, $"{i + 1}. {b.Name} + " + string.Join(" + ", n.Mixers().Select(m => mixers[m])));
             float gain = n.Profit - b.MarketValue;
             Line(card, $"Valor {Ui.Money(n.Value)} · ingredientes {Ui.Money(n.Cost)} · {(gain >= 0 ? "+" : "-")}{Ui.Money(Math.Abs(gain))} sobre vender {b.Name} puro"
                        + (names.TryGetValue(MixSearch.Mask(n.Effects), out var name) ? $" · já criado: <b>{name}</b>" : ""));
@@ -399,7 +402,7 @@ public sealed partial class Recipes
         var watch = System.Diagnostics.Stopwatch.StartNew();
         var mixes = MixSearch.Search(start.ToArray(), react, adds, mixers.Select(m => m.BasePurchasePrice).ToArray(), Value, _mixSteps.Value, MixBeam);
         Log.Info($"misturas de {b.Name}: {mixes.Count} em {watch.ElapsedMilliseconds} ms");
-        return new MixResult(mixes, effects.ToArray(), index, mixers.Select(m => m.Name).ToArray());
+        return new MixResult(mixes, effects.ToArray(), index, mixers.ToArray());
     }
 
     private void BuildMixers()
@@ -412,7 +415,7 @@ public sealed partial class Recipes
         {
             var m = mixers[i];
             if (m == null) continue;
-            var card = Entry(m.Icon, m.Name, Ui.Money(m.BasePurchasePrice));
+            var card = Entry(m.Icon, m.IsUnlocked ? m.Name : $"<color=#8a8a8a>{m.Name}  (bloqueado)</color>", Ui.Money(m.BasePurchasePrice));
             var effect = m.Properties != null && m.Properties.Count > 0 ? m.Properties[0] : null;
             if (effect != null) Line(card, $"Adiciona: {EffectLabel(effect)} (nível {effect.Tier})");
             if (m.RequiresLevelToPurchase) Line(card, $"Libera no rank {FullRank.GetString(m.RequiredRank)}");
