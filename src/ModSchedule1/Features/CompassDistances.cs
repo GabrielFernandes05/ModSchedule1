@@ -21,24 +21,30 @@ public sealed class CompassDistances : Feature<CompassDistances>
         _range = Setting("MaxDistance", 100000f, "Distância máxima exibida (m)", "Marcadores até essa distância mostram o rótulo", min: 50, max: 100000);
     }
 
-    // UpdateElement escreve o rótulo só se distância <= 50 (DISTANCE_LABEL_THRESHOLD é const, embutido no código
-    // nativo: gravar nele derrubava o jogo na v0.3.0). Aqui completamos o rótulo que o jogo deixou vazio.
-    [HarmonyPatch(typeof(CompassManager), nameof(CompassManager.UpdateElement))]
-    private static class UpdateElementPatch
+    // UpdateElement escreve o rótulo só se distância <= 50 e apaga nos outros (DISTANCE_LABEL_THRESHOLD é const,
+    // embutido no código nativo: gravar nele derrubava o jogo na v0.3.0). No IL2CPP o UpdateElement foi embutido no laço
+    // de UpdateElements (todo frame); só AddElement chama de verdade. Completamos os rótulos depois do laço.
+    [HarmonyPatch(typeof(CompassManager), nameof(CompassManager.UpdateElements))]
+    private static class UpdateElementsPatch
     {
-        private static void Postfix(CompassManager __instance, CompassManager.Element element)
+        private static void Postfix(CompassManager __instance)
         {
-            if (!I.Active || element == null || !element.Visible) return;
+            if (!I.Active) return;
             try
             {
-                var target = element.TargetTransform;
                 var cam = __instance.cam;
-                if (target == null || cam == null) return;
-                float dist = Vector3.Distance(cam.position, target.position);
-                if (dist <= 50f || dist > I._range.Value) return;
-                element.DistanceLabel.text = UnitsUtility.FormatShortDistance(dist, UnitsUtility.ERoundingType.Up);
+                if (cam == null) return;
+                foreach (var element in __instance.elements)
+                {
+                    if (element == null || !element.Visible) continue;
+                    var target = element.TargetTransform;
+                    if (target == null) continue;
+                    float dist = Vector3.Distance(cam.position, target.position);
+                    if (dist <= 50f || dist > I._range.Value) continue;
+                    element.DistanceLabel.text = UnitsUtility.FormatShortDistance(dist, UnitsUtility.ERoundingType.Up);
+                }
             }
-            catch (System.Exception e) { I.Fault("UpdateElement", e); }
+            catch (System.Exception e) { I.Fault("UpdateElements", e); }
         }
     }
 }

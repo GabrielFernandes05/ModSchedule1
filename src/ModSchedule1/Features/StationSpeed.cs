@@ -34,6 +34,7 @@ public sealed class StationSpeed : Feature<StationSpeed>
     private readonly List<Mixer> _mixers = new();
     private sealed class Mixer { public MixingStation Station = null!; public int Original; public float Carry; }
     private readonly List<(PackagingStation Station, float Original)> _packagers = new();
+    private readonly Dictionary<IntPtr, float> _dryCarry = new();
 
     protected override void OnInit()
     {
@@ -66,7 +67,7 @@ public sealed class StationSpeed : Feature<StationSpeed>
     public float DryingSpeed => Mult(_drying, Upgrades.Drying);
     public float MixingSpeed => Mult(_mixing, Upgrades.Mixing);
 
-    public override void OnSceneLoaded(string scene) { _cauldrons.Clear(); _mixers.Clear(); _packagers.Clear(); }
+    public override void OnSceneLoaded(string scene) { _cauldrons.Clear(); _mixers.Clear(); _packagers.Clear(); _dryCarry.Clear(); }
 
     /// <summary>Aplica a velocidade atual em tudo que já existe (config mudou ou melhoria comprada).</summary>
     public void Reapply()
@@ -118,22 +119,54 @@ public sealed class StationSpeed : Feature<StationSpeed>
         });
     }
 
-    // Lab oven: duração vem do item (CookableModule); GetCookDuration é usado pelo timer, UI e IsComplete.
+    // Lab oven: a duração vem do item (CookableModule) e fica em cache no campo cookDuration da operação. No IL2CPP o
+    // GetCookDuration foi embutido em IsComplete/IsReady (progresso e o "pronto?" do Chemist ao chegar) e no timer; só
+    // IsReadyForHarvest, o líquido e a UI chamam de verdade. Mudar só o retorno fazia o Chemist ver o forno pronto, ir
+    // até ele e desistir em loop até dar o tempo original. Gravamos a duração no cache, que as cópias embutidas leem.
     [HarmonyPatch(typeof(OvenCookOperation), nameof(OvenCookOperation.GetCookDuration))]
     private static class OvenPatch
     {
-        private static void Postfix(ref int __result)
+        private static void Postfix(OvenCookOperation __instance, ref int __result)
         {
-            float m = I.Mult(I._oven, Upgrades.Oven);
-            if (Math.Abs(m - 1f) > 0.001f) __result = Scale(__result, m);
+            if (I.Faulted) return;
+            try
+            {
+                int d = __instance.Cookable.CookTime;
+                float m = I.OvenSpeed;
+                if (Math.Abs(m - 1f) > 0.001f) d = Scale(d, m);
+                __instance.cookDuration = __result = d;
+            }
+            catch (Exception e) { I.Fault("OvenCookOperation.GetCookDuration", e); }
         }
     }
 
-    // Drying rack: DRY_MINS_PER_TIER é const; o progresso por minuto é multiplicado por GetDryMultiplier.
+    // Drying rack: DRY_MINS_PER_TIER é const; o progresso é minutos x GetDryMultiplier (temperatura). No IL2CPP o
+    // GetDryMultiplier foi embutido em OnTimePass, então o patch nele só muda a taxa mostrada na mesa.
     [HarmonyPatch(typeof(DryingRack), nameof(DryingRack.GetDryMultiplier))]
     private static class DryingPatch
     {
         private static void Postfix(ref float __result) => __result *= I.Mult(I._drying, Upgrades.Drying);
+    }
+
+    // O progresso de verdade: escala os minutos em OnTimePass (OnMinPass e dormir chamam de verdade), com a sobra
+    // fracionária guardada por mesa, como no mixer.
+    [HarmonyPatch(typeof(DryingRack), nameof(DryingRack.OnTimePass))]
+    private static class DryingTimePatch
+    {
+        private static void Prefix(DryingRack __instance, ref int minutes)
+        {
+            if (I.Faulted) return;
+            try
+            {
+                float rate = I.DryingSpeed;
+                if (Math.Abs(rate - 1f) < 0.001f) return;
+                I._dryCarry.TryGetValue(__instance.Pointer, out float carry);
+                float step = minutes * rate + carry;
+                minutes = (int)step;
+                I._dryCarry[__instance.Pointer] = step - minutes;
+            }
+            catch (Exception e) { I.Fault("DryingRack.OnTimePass", e); }
+        }
     }
 
     // Mixing station (e Mk2, que herda Awake): tempo por item.

@@ -35,14 +35,16 @@ public sealed class WarehouseAlwaysOpen : Feature<WarehouseAlwaysOpen>
 
     public override void OnSceneLoaded(string scene) => _unlockSent = false;
 
-    [HarmonyPatch(typeof(DarkMarket), nameof(DarkMarket.ShouldBeOpen))]
-    private static class ShouldBeOpenPatch
+    // DarkMarket.Update faz IsOpen = ShouldBeOpen() todo frame; no IL2CPP o ShouldBeOpen foi embutido ali (patch nele
+    // nunca rodava, então portões e porta seguiam o horário). Corrigimos IsOpen logo depois.
+    [HarmonyPatch(typeof(DarkMarket), nameof(DarkMarket.Update))]
+    private static class UpdatePatch
     {
-        private static void Postfix(DarkMarket __instance, ref bool __result)
+        private static void Postfix(DarkMarket __instance)
         {
-            if (__result || !I.Active) return;
-            try { if (Unlocked(__instance)) __result = true; }
-            catch (System.Exception e) { I.Fault("ShouldBeOpen", e); }
+            if (!I.Active) return;
+            try { if (!__instance.IsOpen && Unlocked(__instance)) __instance.IsOpen = true; }
+            catch (System.Exception e) { I.Fault("DarkMarket.Update", e); }
         }
     }
 
