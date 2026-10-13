@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Il2CppScheduleOne.MiniGames;
 using Il2CppScheduleOne.Trash;
 using MelonLoader;
 using UnityEngine;
@@ -24,8 +25,12 @@ public sealed class NoMoreTrash : Feature<NoMoreTrash>
         _keepBags = Setting("KeepTrashBags", true, "Manter sacos de lixo", "Não remove os sacos de lixo que você ou os funcionários fecham");
     }
 
-    private bool ShouldKeep(string id)
+    private bool ShouldKeep(TrashItem trash)
     {
+        // A bolinha do beer pong é um TrashItem; sem ela a mesa recria a cada 1 s e o mod destrói de novo (RPC em loop).
+        // Pelo tipo porque o ID dela só existe no prefab do jogo.
+        if (trash.TryCast<TableTennisBall>() != null) return true;
+        var id = trash.ID;
         if (_keepBags.Value && id.Contains("trashbag")) return true;
         foreach (var k in _keep.Value.Split(','))
             if (k.Trim().Equals(id, System.StringComparison.OrdinalIgnoreCase)) return true;
@@ -54,7 +59,7 @@ public sealed class NoMoreTrash : Feature<NoMoreTrash>
         for (int i = 0; i < list.Count; i++)
         {
             var trash = list[i];
-            if (trash == null || ShouldKeep(trash.ID)) continue;
+            if (trash == null || ShouldKeep(trash)) continue;
             int id = trash.GetInstanceID();
             if (_seen.Contains(id)) _pending.Add(trash);
             else _fresh.Add(id);
