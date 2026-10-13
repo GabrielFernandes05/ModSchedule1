@@ -35,19 +35,31 @@ public sealed class NoMoreTrash : Feature<NoMoreTrash>
     // Varre a lista de lixo do jogo no host. Hook na criação não basta: lixo criado por OUTRO jogador chega por RPC e o
     // jogo cria pelo mesmo método, mas chamado direto do código compilado (inlinado), e o patch não vê.
     // Varrer também pega lixo de NPC, do gerador e do save. Destruir no host sincroniza com todos (DestroyTrash é RPC).
+    // Só destrói o que já estava na varredura anterior: lixo criado NO HOST vai primeiro do cliente do host para o
+    // servidor dele (1-2 ticks) e só então é retransmitido. Destruir antes disso manda o "destruir" na frente do "criar";
+    // o cliente não acha nada para destruir e depois cria o lixo, que fica lá para sempre.
+    // ponytail: idade mínima = 1 varredura (0,25 s e 3 frames); aumentar se o tick rate do jogo for menor que ~10 Hz.
     private float _next;
+    private int _nextFrame;
+    private HashSet<int> _seen = new(), _fresh = new();
 
     public override void OnUpdate()
     {
-        if (Time.unscaledTime < _next || !TrashManager.InstanceExists) return;
+        if (Time.unscaledTime < _next || Time.frameCount < _nextFrame || !TrashManager.InstanceExists) return;
         _next = Time.unscaledTime + 0.25f;
+        _nextFrame = Time.frameCount + 3;
         var list = TrashManager.Instance._trashItems;
         _pending.Clear();
+        _fresh.Clear();
         for (int i = 0; i < list.Count; i++)
         {
             var trash = list[i];
-            if (trash != null && !ShouldKeep(trash.ID)) _pending.Add(trash);
+            if (trash == null || ShouldKeep(trash.ID)) continue;
+            int id = trash.GetInstanceID();
+            if (_seen.Contains(id)) _pending.Add(trash);
+            else _fresh.Add(id);
         }
+        (_seen, _fresh) = (_fresh, _seen);
         foreach (var trash in _pending)
         {
             Log.Debug($"removido: {trash.ID}");
