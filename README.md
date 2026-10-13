@@ -40,7 +40,7 @@ A primeira abertura do jogo demora alguns minutos, porque o MelonLoader gera os 
 | Compass Distances | Distância de todos os marcadores na bússola | pessoal |
 | Auto Clear Completed Deals | Esconde conversas de clientes sem negócio pendente | pessoal |
 | Dealers+ | Coletar dinheiro no app de dealers do jogo | pessoal |
-| Recipe List | **F8** abre o livro de receitas em abas: produtos (efeitos, valor e receita completa), ingredientes, efeitos, química, estações (forno, caldeirão, secador, prensa) e cultivo, com os tempos já com o mod e as melhorias. Também mostra a receita completa no app de produtos | pessoal |
+| Recipe List | **F8** abre o livro de receitas em abas: produtos (efeitos, valor e receita completa), todas as misturas possíveis de cada droga base ordenadas por lucro (até N ingredientes, configurável), ingredientes, efeitos, química, estações (forno, caldeirão, secador, prensa) e cultivo, com os tempos já com o mod e as melhorias. Também mostra a receita completa no app de produtos | pessoal |
 | DeliveryApp++ | Favoritos e pedidos recorrentes no app Delivery do jogo | pessoal |
 | Bank + Laundry | App **Finanças** no celular, em abas: Banco, Lavagem, Fornecedores (pagar dívida na hora), Dealers (coletar, ver estoque e abrir o inventário do dealer à distância), Melhorias e Histórico | pessoal |
 | More Guns | Submetralhadora, pistola de pente estendido, Magnum e escopeta automática no Stan (visual das armas do jogo) | do host |

@@ -20,7 +20,7 @@ public sealed partial class Recipes : Feature<Recipes>
 {
     public override string Id => "Recipes";
     public override string Name => "Recipe List";
-    public override string Description => "Livro de receitas (F8) com tudo o que dá para produzir, em abas, e receita completa de cada mistura no app de produtos do celular.";
+    public override string Description => "Livro de receitas (F8) com tudo o que dá para produzir, em abas (inclusive todas as misturas possíveis com lucro), e receita completa de cada mistura no app de produtos do celular.";
     public override bool Shared => false;   // pessoal: cada jogador usa a própria config
 
     private Text? _chainText;

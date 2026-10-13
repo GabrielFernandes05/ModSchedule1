@@ -1,5 +1,5 @@
 {
-  "version": "0.15.1",
+  "version": "0.16.0",
   "features": [
     {
       "id": "BetterStacks",
@@ -83,7 +83,7 @@
       "id": "Recipes",
       "name": "Recipe List",
       "default": true,
-      "description": "Livro de receitas (F8): produtos, ingredientes, efeitos, química, estações e cultivo em abas; receita completa no app de produtos."
+      "description": "Livro de receitas (F8): produtos, todas as misturas possíveis com lucro, ingredientes, efeitos, química, estações e cultivo em abas; receita completa no app de produtos."
     },
     {
       "id": "Deliveries",
